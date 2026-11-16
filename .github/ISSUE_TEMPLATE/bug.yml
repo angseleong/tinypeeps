@@ -1,0 +1,44 @@
+name: Something's wrong
+description: The app breaks, a Peep shows the wrong thing, or a number looks off.
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        > [!WARNING]
+        > **This page is public.** Don't paste transcripts, prompts, tokens, file paths or screenshots of your real work. Describe what happened instead; that's enough.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what the app showed, and what you expected instead.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where in the app?
+      multiple: true
+      options:
+        - First run or Templates
+        - The office (Peeps, Activities, Drop)
+        - Approvals
+        - Tasks
+        - Dashboard (tokens, Weekly Limit, Saving)
+        - Team (Roles, models, plugins)
+        - Installing or updating
+        - Somewhere else
+
+  - type: input
+    id: setup
+    attributes:
+      label: Your setup
+      description: Your computer, your Claude plan, and `claude --version`.
+      placeholder: MacBook Air M1, Max plan, Claude Code 2.1.292
+
+  - type: input
+    id: version
+    attributes:
+      label: TinyPeeps version
