@@ -5,9 +5,27 @@ open-source desktop app that orchestrates Claude Code sessions as a small 3D off
 a team who works, and you as the CEO who approves what matters. It shows how many tokens each peep
 uses and how much the team saved by not running everything on the biggest model.
 
-> **Status: planning.** The app doesn't exist yet, so there is nothing to download. This repository
-> holds the plan. Everything under [What it will do](#what-it-will-do) describes the first version we
-> intend to build.
+> **Status: rough prototype.** There is nothing to download yet. A first, ugly version runs from
+> source ([Try the prototype](#try-the-prototype)). Everything under [What it will do](#what-it-will-do)
+> describes the first version we intend to build.
+
+## Try the prototype
+
+You need macOS, Node.js 22 or newer, and [Claude Code](https://code.claude.com) installed and signed in.
+
+```sh
+npm install
+node node_modules/electron/install.js   # only if `npm run dev` says "Electron uninstall"
+npm run dev
+```
+
+What works today: four Peeps in a box-and-capsule office, **Simulasi** (fake activities, 0 tokens),
+picking a Peep up and dropping it in a Room or next to another Peep, the Drop Box, the Command Bar,
+the side panel (click a Peep), and real work: pick an Office folder, send a task, and the Peep runs
+`claude -p` there and moves as it reads, types and finishes. Token use shows top right.
+
+Not yet: Approvals (any permission besides editing files in the Office folder is denied), the Boss
+splitting work, Templates, the dashboard, real art.
 
 [Product spec](docs/prd.md) · [Decisions](docs/adr/) · [Privacy](docs/privacy.md) · [Contributing](CONTRIBUTING.md)
 

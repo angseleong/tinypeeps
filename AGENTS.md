@@ -3,8 +3,13 @@
 TinyPeeps is a planned Electron + TypeScript desktop app that runs Claude Code sessions as Peeps in a
 3D office. Human docs: `README.md`; what to build: `docs/prd.md`; setup and rules: `CONTRIBUTING.md`.
 
-**There is no app code yet.** The layout below is the plan from
-`docs/adr/0001-electron-app-over-claude-code-sessions.md`; don't describe any of it as working.
+**A rough prototype exists** (README, "Try the prototype"): `src/core/activity.ts` (stream-json to
+Activity, tested), `src/main` (Electron main, runs `claude -p` per Peep), `src/preload`, and
+`src/renderer` (React + React Three Fiber office). It's built to be looked at and changed fast, not to
+last. The layout below is where it's heading, from
+`docs/adr/0001-electron-app-over-claude-code-sessions.md`; don't describe the parts not built as working.
+
+Commands: `npm run dev` (the app), `npm test`, `npm run typecheck`.
 
 - `src/core`: pure code shared by both sides (models, the Activity map, savings math, the bridge
   contract, template parsing, `strings/` for every word on screen in Indonesian and English).
@@ -17,7 +22,7 @@ TinyPeeps is a planned Electron + TypeScript desktop app that runs Claude Code s
 - `test/`: tests against a pretend Claude Code (`test/pretend`) fed by recorded, scrubbed hook events.
 - `spikes/`: throwaway code that answers one question. The app never imports it.
 
-Commands today: none. There is no `package.json` yet. The repository is public: never commit real
+The repository is public: never commit real
 transcripts, prompts, tokens or file paths from anyone's sessions (`docs/test-data.md` once it exists).
 Background: `CONTEXT.md` (words), `docs/adr/` (decisions), `docs/architecture.md` (how it fits),
 `docs/token-savings.md` (how cost is counted), `docs/privacy.md` (promises to the CEO).

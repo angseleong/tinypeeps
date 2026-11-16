@@ -7,3 +7,4 @@ release/
 .scratch/
 # A real Office's TinyPeeps data, if you test inside this repo.
 .tinypeeps/
+out/
