@@ -5,8 +5,8 @@ open-source desktop app that orchestrates Claude Code sessions as a small 3D off
 a team who works, and you as the CEO who approves what matters. It shows how many tokens each peep
 uses and how much the team saved by not running everything on the biggest model.
 
-> **Status: rough prototype.** There is nothing to download yet. A first, ugly version runs from
-> source ([Try the prototype](#try-the-prototype)). Everything under [What it will do](#what-it-will-do)
+> **Status: early prototype.** There is nothing to download yet. A first version runs from source
+> ([Try the prototype](#try-the-prototype)). Everything under [What it will do](#what-it-will-do)
 > describes the first version we intend to build.
 
 ## Try the prototype
@@ -19,15 +19,13 @@ node node_modules/electron/install.js   # only if `npm run dev` says "Electron u
 npm run dev
 ```
 
-What works today: four Peeps in a box-and-capsule office, **Simulasi** (fake activities, 0 tokens),
-picking a Peep up and dropping it in a Room or next to another Peep, the Drop Box, the Command Bar,
-the side panel (click a Peep), and real work: pick an Office folder, send a task, and the Peep runs
-`claude -p` there and moves as it reads, types and finishes. Token use shows top right.
+What works today: the app shell (Office, Tasks, Dashboard, Team, Settings; light and dark; English and
+Indonesian), four Peeps from editable Role files in `.tinypeeps/roles/`, Simulation (0 tokens), Drop and
+the Drop Box, the Command Bar (`⌘K`), real tasks through `claude -p` with each Role's own model and
+tools, and a Dashboard with tokens per model and Peep, the Saving against Opus and your Weekly Limit.
 
 Not yet: Approvals (any permission besides editing files in the Office folder is denied), the Boss
-splitting work, Templates, the dashboard, real art.
-
-[Product spec](docs/prd.md) · [Decisions](docs/adr/) · [Privacy](docs/privacy.md) · [Contributing](CONTRIBUTING.md)
+splitting work, a kanban board, Templates, real art. The plan is in [TODO.md](TODO.md).
 
 ## What it will do
 
@@ -60,9 +58,12 @@ ragdolls, and API-key billing. [docs/prd.md](docs/prd.md#not-in-the-first-versio
 
 | Question | Result |
 |---|---|
-| Can the app see what a Claude Code session is doing without asking the model? | Not tested yet. Hooks should be enough ([ADR 2](docs/adr/0002-the-office-costs-no-tokens.md)); a spike will prove it. |
+| Can the app see what a Claude Code session is doing without asking the model? | Passed once: a real Haiku task streamed Read → Edit → done through `stream-json`, mapped by `src/core/activity.ts` with no extra model call. Hooks for permissions and subagents are still to test ([ADR 2](docs/adr/0002-the-office-costs-no-tokens.md)). |
+| How many tokens does a session carry before any work? | Measured with Claude Code 2.1.292 and Haiku: about 33.6k context tokens per model turn with the maintainer's plugins, skills and hooks; 26.4k with `--safe-mode` (−22%: 121 → 31 tools, 90 → 20 skills, 10 → 0 MCP servers). A 4-turn task re-reads that context each turn, about 128k cache reads in all. |
+| Does a lean Role really start smaller? | Passed: measured from the Team page, Claude Code 2.1.292. Everything loaded: 32.6k tokens per turn. Each default Role (`--safe-mode`, its own `--tools`): 6.8k–8.1k, 75–79% less. The tool list is most of the cut. Plugins can't be added back per Role: `--safe-mode` loads no plugin skills. |
+| Does the Saving match what Claude Code charges? | Passed once: a Haiku 4.5 task cost $0.033671 by `src/core/prices.ts`, the same as Claude Code's own `costUSD`; 74% less than the same tokens on Opus 5.5. |
 | Can permission prompts be answered from the app instead of a terminal? | Not tested yet. `claude -p` has `--permission-prompts host` and `--permission-prompt-tool` for this. |
-| Can the app read the weekly limit? | Not tested yet. The status line input carries `rate_limits.seven_day.used_percentage` on Pro and Max. |
+| Can the app read the weekly limit? | Passed: `claude -p --output-format stream-json` emits a `rate_limit_event` with the five-hour and seven-day utilization and reset time. The status line command does not run in `-p`, so it isn't used. |
 | Does a low-poly office with 6 peeps run smoothly on an M1 MacBook Air? | Not tested yet. |
 
 ## Your data stays on your computer
@@ -86,6 +87,7 @@ and everyone follows the [code of conduct](CODE_OF_CONDUCT.md).
 | Read | For |
 | --- | --- |
 | [docs/prd.md](docs/prd.md) | What we're building, for whom, and what counts as done |
+| [TODO.md](TODO.md) | What's left before v0.1, in packages, each item pointing to its doc |
 | [CONTEXT.md](CONTEXT.md) | The words the project uses (Peep, Boss, Office, Room, Drop, Approval…) |
 | [docs/adr/](docs/adr/) | How it's built and why |
 | [docs/architecture.md](docs/architecture.md) | How sessions, hooks and the window fit together |

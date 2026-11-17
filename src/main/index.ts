@@ -1,107 +1,89 @@
-import { type ChildProcess, spawn } from "node:child_process";
 import { join } from "node:path";
-import { createInterface } from "node:readline";
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
-import { type PeepUpdate, readStreamLine } from "../core/activity";
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme } from "electron";
+import type { PeepUpdate } from "../core/activity";
+import type { Role } from "../core/roles";
+import type { Settings } from "../core/settings";
+import { createEngine, measureRoles, type RunRequest } from "./engine";
+import { listMcp, loadContextCosts, loadLimits, loadRoles, loadSettings, loadUsage, saveContextCosts, saveRole, saveSettings } from "./store";
 
-export type RunRequest = { peepId: string; model: string; prompt: string; brief: string; cwd: string };
-
-const CONCURRENCY_LIMIT = 3;
-const running = new Map<string, ChildProcess>();
-const queue: RunRequest[] = [];
 let win: BrowserWindow | null = null;
+let settings = loadSettings();
+const roles = new Map<string, Role[]>();
 
-function send(peepId: string, update: PeepUpdate) {
-  win?.webContents.send("peep:update", peepId, update);
+const rolesOf = (office: string) => {
+  if (!roles.has(office)) roles.set(office, loadRoles(office, settings.language));
+  return roles.get(office) ?? [];
+};
+const emit = (channel: string, ...args: unknown[]) => win?.webContents.send(channel, ...args);
+
+const engine = createEngine({
+  settings: () => settings,
+  role: (office, peepId) => rolesOf(office).find((r) => r.id === peepId),
+  send: (peepId: string, u: PeepUpdate) => emit("peep:update", peepId, u),
+  onLimits: () => emit("limits:update", loadLimits()),
+  onUsage: () => settings.current && emit("usage:update", loadUsage(settings.current)),
+});
+
+function setSettings(next: Settings) {
+  settings = next;
+  saveSettings(settings);
+  nativeTheme.themeSource = settings.theme;
+  emit("settings:update", settings);
 }
 
-function start(req: RunRequest) {
-  const args = [
-    "-p",
-    req.prompt,
-    "--output-format",
-    "stream-json",
-    "--verbose",
-    "--model",
-    req.model,
-    "--append-system-prompt",
-    req.brief,
-    // shortcut: edits inside the Office folder are auto-accepted and every other permission is denied,
-    // until Approvals reach the window (ADR 5, spike permission-host).
-    "--permission-mode",
-    "acceptEdits",
-    "--permission-prompts",
-    "none",
-  ];
-  // shortcut: relies on `claude` being on PATH, true when started from a terminal with `npm run dev`;
-  // a packaged app opened from Finder needs the path in Settings.
-  const child = spawn("claude", args, { cwd: req.cwd, env: process.env, stdio: ["ignore", "pipe", "pipe"] });
-  running.set(req.peepId, child);
-  let stderr = "";
-  let ended = false;
-
-  createInterface({ input: child.stdout }).on("line", (line) => {
-    const update = readStreamLine(line);
-    if (!update) return;
-    if (update.done) ended = true;
-    send(req.peepId, update);
-  });
-  child.stderr.on("data", (d) => {
-    stderr += String(d);
-  });
-  child.on("error", (err) => {
-    send(req.peepId, { activity: "stuck", done: true, error: `Gagal menjalankan claude: ${err.message}` });
-  });
-  child.on("close", (code) => {
-    running.delete(req.peepId);
-    if (!ended) {
-      const error = code === null ? "Dihentikan" : stderr.trim() || `claude keluar dengan kode ${code}`;
-      send(req.peepId, { activity: code === null ? "idle" : "stuck", done: true, error });
-    }
-    const next = queue.shift();
-    if (next) start(next);
-  });
-}
+ipcMain.handle("settings:get", () => settings);
+ipcMain.handle("settings:set", (_e, patch: Partial<Settings>) => setSettings({ ...settings, ...patch }));
 
 ipcMain.handle("office:pick", async () => {
-  if (!win) return null;
-  const r = await dialog.showOpenDialog(win, { properties: ["openDirectory", "createDirectory"], title: "Pilih folder kantor" });
-  return r.canceled ? null : r.filePaths[0];
+  if (!win) return settings;
+  const r = await dialog.showOpenDialog(win, { properties: ["openDirectory", "createDirectory"] });
+  const dir = r.filePaths[0];
+  if (r.canceled || !dir) return settings;
+  setSettings({ ...settings, current: dir, offices: [dir, ...settings.offices.filter((o) => o !== dir)] });
+  return settings;
 });
 
-ipcMain.handle("peep:run", (_e, req: RunRequest) => {
-  if (running.has(req.peepId) || queue.some((q) => q.peepId === req.peepId)) return "busy";
-  if (running.size >= CONCURRENCY_LIMIT) {
-    queue.push(req);
-    send(req.peepId, { activity: "queued", label: "Nunggu giliran di sofa" });
-    return "queued";
-  }
-  start(req);
-  return "started";
+ipcMain.handle("office:data", (_e, office: string) => ({ roles: rolesOf(office), usage: loadUsage(office) }));
+ipcMain.handle("role:save", (_e, office: string, role: Role) => {
+  saveRole(office, role);
+  roles.delete(office);
+  return rolesOf(office);
 });
 
-ipcMain.handle("peep:stop", (_e, peepId: string) => {
-  const i = queue.findIndex((q) => q.peepId === peepId);
-  if (i >= 0) {
-    queue.splice(i, 1);
-    send(peepId, { activity: "idle", done: true, error: "Dibatalin" });
-  }
-  running.get(peepId)?.kill("SIGINT");
+ipcMain.handle("claude:config", (_e, office: string | null) => ({ mcp: Object.keys(listMcp(office)), costs: loadContextCosts(), limits: loadLimits() }));
+ipcMain.handle("context:measure", async (_e, office: string) => {
+  const costs = await measureRoles(settings.claudePath, rolesOf(office), office, (i, n) => emit("context:progress", i, n));
+  saveContextCosts(costs);
+  return costs;
 });
+
+ipcMain.handle("peep:run", (_e, req: RunRequest) => engine.run(req));
+ipcMain.handle("peep:stop", (_e, peepId: string) => engine.stop(peepId));
+
+// In development, keep painting while the window is covered, so background UI checks see the real frame.
+if (!app.isPackaged) {
+  app.commandLine.appendSwitch("disable-backgrounding-occluded-windows");
+  app.commandLine.appendSwitch("disable-renderer-backgrounding");
+}
 
 app.whenReady().then(() => {
+  // In development, keep the window's accessibility tree on so UI checks can read and click it.
+  if (!app.isPackaged) app.setAccessibilitySupportEnabled(true);
+  nativeTheme.themeSource = settings.theme;
   win = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    width: 1440,
+    height: 920,
+    minWidth: 1000,
+    minHeight: 680,
     title: "TinyPeeps",
-    backgroundColor: "#f7f4ef",
+    titleBarStyle: "hiddenInset",
+    trafficLightPosition: { x: 18, y: 18 },
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#0f0e0d" : "#ffffff",
     webPreferences: { preload: join(import.meta.dirname, "../preload/index.mjs"), sandbox: false },
   });
   if (process.env.ELECTRON_RENDERER_URL) win.loadURL(process.env.ELECTRON_RENDERER_URL);
   else win.loadFile(join(import.meta.dirname, "../renderer/index.html"));
 });
 
-app.on("before-quit", () => {
-  for (const child of running.values()) child.kill("SIGINT");
-});
+app.on("before-quit", () => engine.stopAll());
 app.on("window-all-closed", () => app.quit());

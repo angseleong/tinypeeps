@@ -22,17 +22,22 @@ TinyPeeps should also look great in a 30-second demo: type a Goal, watch Peeps w
 
 ## Layout
 
-A clean, light, card-based shell, in the spirit of modern project dashboards:
+Material and motion follow DesignBookmark's [Motion Studies](https://designbookmark.com/motion), the
+part of the site whose components are built to be copied, adapted to our warm accent:
 
-- **Icon sidebar** on the left: Office (home), Tasks, Dashboard, Team, Settings. The current Office's
-  name and a switcher on top.
-- **Office page:** the 3D scene fills the window. HUD top-right (tokens today, Saving this week,
-  Approvals waiting). Command Bar bottom-centre. Peep side panel slides in from the right.
-- **Tasks page:** kanban (Backlog, Working, Review, Done). Cards show the Peep's Avatar, model and
-  tokens; a card can be dragged onto a Peep's Avatar to assign it.
-- **Dashboard page:** a headline card with the big Saving number and the Weekly Limit gauge, then
-  cards by model, by Peep, by day and Escalations ([token-savings.md](token-savings.md#what-the-dashboard-shows)).
-- **Team page:** a card per Role: Avatar, brief size, model, plugins with their token cost.
+- **Surfaces, not effects.** Stage → card → surface → fills at 5 / 9 / 14 %. No strokes, no shadows,
+  no blur over the 3D office, no gradients. Inter, sizes 11 to 17 (titles 26), weights 400 / 500 / 600.
+- **Inverse pill** (white on dark, near-black on light) for the main action; green only for success
+  (Saving, a finished Task); warm accent only for the brand mark and a working Peep.
+- **Rubber dock** (left, floating): Office, Activity, Tasks, Dashboard, Team, Settings, with a name on
+  hover.
+- **Morph island** (top centre): the Office name and who's working; for a moment it becomes what just
+  happened ("Raka · Read notes.md", "Raka · Finished · 13k tokens", a notice). Clicking it opens that
+  Peep.
+- **Office page:** the 3D scene fills the window. Stats and the Simulation switch top-right, the
+  roster bottom-left, the prompt box bottom-centre, the Drop popover above it, the inspector on the right.
+- **Other pages:** a title under the island and cards that rise in one after another. Settings is
+  one column of grouped rows: what it is on the left, the control on the right.
 
 ## Screens in the first version
 
@@ -60,7 +65,7 @@ Light is the main theme, to match the warm office. Dark has to work too. Draft t
 | `line` | `#e7e1d8` | `#34302b` | Borders |
 | `text` | `#24211d` | `#f1ece4` | Main text |
 | `muted` | `#7a736a` | `#a59d92` | Secondary text |
-| `accent` | `#c96f4a` | `#e08a63` | Primary action, Boss |
+| `accent` | `#b5552f` | `#ec8a5e` | Primary action, Boss (text on it: white in light, near-black in dark, 4.5:1) |
 | `good` | `#5f8f6b` | `#7fb38b` | Saving, Done |
 | `wait` | `#d9a441` | `#e6b95c` | Waiting for Approval |
 | `stuck` | `#c4524a` | `#e06b62` | Stuck, Escalation |
@@ -76,12 +81,30 @@ Model colours, used the same everywhere (badges, charts): Opus `accent`, Sonnet 
 
 ## Motion
 
-- **Motion** (the library) for panels, cards and buttons: 150 to 250 ms, ease-out, nothing bounces in
-  the UI. The bounce belongs to Peeps.
-- Respect "reduce motion": the office keeps working but Peeps walk instead of hop, and the Drop wobble
-  is off.
-- When choosing a micro-interaction, collections like motion-prompt and DesignBookmark help; check a
-  skill's contents before installing it.
+Named springs ("stiffness damping", mass 1), copied from Motion Studies' `tokens.css` into
+`springs` in `src/renderer/src/ui.tsx`:
+
+| Spring | Values | Used for |
+|---|---|---|
+| `follow` | 900 50 | Something held by the pointer |
+| `settle` | 280 22 | Landing on a value: toggles, meters (one small overshoot) |
+| `soft` | 260 24 | Panels: the inspector, the Drop popover, the HUD |
+| `lead` / `trail` | 620 36 / 190 19 | The Rubber dock's two edges: the lazy one makes the stretch |
+| `pop` | 520 16 | Icon and button pops on select or press |
+| `fade` | 420 32 | Opacity and small slides; cards rising on a page |
+
+- **Rubber dock:** the pill's top and bottom are separate springs; the edge facing the move leads, the
+  other trails, so the pill stretches between pages and settles. The new icon pops.
+- **Morph island:** width (380 24) and height (300 22) are separate springs, so a change lands
+  sideways first and then drops; the content cross-fades through a 6 px blur.
+- Panels open out of a slight blur on `soft`; chips and feed rows arrive 45 ms apart.
+- Day bars grow from the baseline one after another with a small overshoot.
+- Peeps: squash and stretch with anticipation when picked up and dropped (motion-prompt #011, #121).
+- Only transform, opacity and small filters animate. "Reduce motion" turns springs into plain fades.
+
+**Performance.** The office draws on demand: only while something moves, at most about 60 frames a
+second, nothing when still or when another page is open. The 3D scene stays mounted between pages, the
+canvas is capped at 1.5× pixel density, shadows use a 1024 map. `npm run dev` logs `[fps]` while it draws.
 
 ## Words
 

@@ -1,7 +1,7 @@
 # Tokens, the Weekly Limit and Savings
 
 How every number on the dashboard is counted, so none of them is a guess presented as a fact. Back to
-the [README](../README.md). **Nothing here is built yet.**
+the [README](../README.md). Built in package A: `src/core/usage.ts`, `src/core/prices.ts`.
 
 ## Where tokens go, and how TinyPeeps cuts them
 
@@ -27,13 +27,13 @@ started it.
 
 ## Weekly Limit
 
-On Pro and Max plans, Claude Code gives a status line command `rate_limits.seven_day.used_percentage`
-and `resets_at` (and the same for `five_hour`), after the first response in a session. TinyPeeps shows
-the latest value it saw and when it was seen. It doesn't estimate the limit from tokens, because
-Anthropic doesn't publish how tokens map to it.
+On Pro and Max plans, `claude -p --output-format stream-json` emits a `rate_limit_event` with the
+five-hour and seven-day utilization and their reset times. TinyPeeps shows the latest value it saw and
+when it was seen. It doesn't estimate the limit from tokens, because Anthropic doesn't publish how
+tokens map to it.
 
-If the field is missing (an API-key login, or an older Claude Code), the dashboard says "Weekly Limit
-not available" instead of a number.
+Before the first Task (or with an API-key login), the dashboard says the Weekly Limit isn't available
+yet instead of a number.
 
 ## Baseline and Saving
 
@@ -45,8 +45,11 @@ saving = Σ (tokens × opus_price) − Σ (tokens × price_of_model_used)
 saving % = saving / Σ (tokens × opus_price)
 ```
 
-- Prices live in one file in `src/core`, with the date they were copied and a link to Anthropic's
-  pricing page. A test fails if the file is older than 90 days, so it gets checked.
+- Prices live in `src/core/prices.ts`, with the date they were copied and a link to Anthropic's
+  pricing page. A test fails if the file is older than 90 days, so it gets checked. Claude Code writes
+  cache entries for an hour, so cache writes are priced at the 1-hour rate; a test checks the result
+  against Claude Code's own `costUSD`.
+- The Baseline model is Opus 5.5 (`BASELINE_MODEL`).
 - This is a **price-weighted** comparison. It's honest about what plan limits cost, but plan limits are
   not published in tokens, so the dashboard labels it "compared with running everything on Opus", not
   "of your Weekly Limit".

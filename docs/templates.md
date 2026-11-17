@@ -57,7 +57,9 @@ write them up for the scriptwriter.
 - End every Task with a Handoff Note of at most 150 words: what you found, where it is, what's open.
 ```
 
-Keep the brief between 200 and 400 words. It is sent at the start of every session.
+Keep the brief under 400 words. It is sent at the start of every session.
+
+`plugins:` is not read yet: Claude Code can't load chosen plugins per session ([ADR 7](adr/0007-plugins-per-role.md#what-we-found-2026-11-16-claude-code-21292)). Use `everything: true` for a Role that needs them.
 
 ## Templates that ship
 

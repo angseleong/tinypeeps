@@ -31,9 +31,10 @@ that matter, all present in Claude Code 2.1.292:
 |---|---|
 | `--model <alias>` | The Role's model, or the Boss's choice for this Task |
 | `--append-system-prompt-file` | The Role brief + Company Note + related Handoff Notes |
-| `--allowedTools` / `--disallowedTools` | The Role's tools |
+| `--tools` | The Role's tools only; most of the context saving ([ADR 7](adr/0007-plugins-per-role.md#what-we-found-2026-11-16-claude-code-21292)) |
+| `--safe-mode` | Lean Roles: none of the CEO's plugins, skills, hooks or CLAUDE.md |
 | `--mcp-config` + `--strict-mcp-config` | Only the Role's MCP servers, so unused ones cost nothing |
-| `--settings` | Per-Role settings, including which plugins are enabled and the hooks below |
+| `--settings` | The hooks below (package B) |
 | `--permission-prompts host` + `--permission-prompt-tool` | Permission questions come to the Engine, which makes them Approvals |
 
 Tasks always start a fresh session: memory is Handoff Notes, never `--resume` of an old conversation.
@@ -67,10 +68,9 @@ it before adding one.
 - **Usage:** every assistant message in the `stream-json` output carries its `usage` and model, so
   the Engine counts as the session runs. The transcript (`~/.claude/projects/<folder>/<session>.jsonl`)
   is the fallback after a crash or restart.
-- **Weekly Limit:** Claude Code passes `rate_limits.five_hour` and `rate_limits.seven_day`
-  (`used_percentage`, `resets_at`) to a status line command on Pro and Max plans. The Engine registers
-  a status line command in each session's settings that forwards those two fields. Field names come
-  from community tools and issue reports, not yet from the official docs; a spike confirms them.
+- **Weekly Limit:** `stream-json` carries a `rate_limit_event` with `unifiedWindows.five_hour` and
+  `seven_day` (`utilization`, `resetsAt`) on Pro and Max plans. The Engine saves the latest one. The
+  status line command was the first idea, but it doesn't run in `-p`.
 - Savings math: [token-savings.md](token-savings.md).
 
 ## Memory

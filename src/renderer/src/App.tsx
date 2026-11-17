@@ -1,241 +1,261 @@
+import { Activity as ActivityIcon, Building2, ChartColumn, ListChecks, Settings as SettingsIcon, Users } from "lucide-react";
+import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-import { ACTIVITY_LABEL, type Activity, type PeepUpdate, type Usage } from "../../core/activity";
-import { type Model, type Peep, type Room, roomAt, START_PEEPS, type Vec2 } from "./office-data";
-import { Office } from "./Office";
+import type { Activity, PeepUpdate } from "../../core/activity";
+import type { Role } from "../../core/roles";
+import { DEFAULT_SETTINGS, type Limits, type Settings } from "../../core/settings";
+import { labelText, STRINGS, type Strings } from "../../core/strings";
+import { freshTokens, type UsageRecord } from "../../core/usage";
+import { isWorking } from "./activity-ui";
+import { type IslandState, MorphIsland, RubberDock } from "./chrome";
+import { freshRuntime, type Peep, type Runtime } from "./office-data";
+import { ActivityPage } from "./pages/ActivityPage";
+import { DashboardPage } from "./pages/Dashboard";
+import { OfficePage } from "./pages/OfficePage";
+import { SettingsPage } from "./pages/Settings";
+import { TasksPage } from "./pages/Tasks";
+import { TeamPage } from "./pages/Team";
+import { compact, exitFast, springs } from "./ui";
 
-type Drop = { peepId: string; room: Room | null; near: Peep | null };
-type Totals = Record<Model, number>;
-
-// Cache reads are counted apart: they're cheap, and with many plugins they dwarf the real work.
-const fresh = (u: Usage) => u.input + u.output + u.cacheWrite;
+export type Page = "office" | "activity" | "tasks" | "dashboard" | "team" | "settings";
 
 const SIM_ACTIVITIES: Activity[] = ["typing", "reading", "researching", "running", "thinking", "idle", "stuck"];
-const SIM_LABELS = ["Edit: logo.svg", "Read: brief.md", "WebSearch: tren 2026", "Bash: npm test", "Write: skrip-ep1.md"];
+const SIM_LABELS = ["Edit: logo.svg", "Read: brief.md", "WebSearch: 2026 trends", "Bash: npm test", "Write: script-ep1.md"];
+
+function useTheme(theme: Settings["theme"]) {
+  const [systemDark, setSystemDark] = useState(() => matchMedia("(prefers-color-scheme: dark)").matches);
+  useEffect(() => {
+    const m = matchMedia("(prefers-color-scheme: dark)");
+    const on = () => setSystemDark(m.matches);
+    m.addEventListener("change", on);
+    return () => m.removeEventListener("change", on);
+  }, []);
+  const dark = theme === "dark" || (theme === "system" && systemDark);
+  useEffect(() => {
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+  }, [dark]);
+  return dark;
+}
+
+const reducedQuery = matchMedia("(prefers-reduced-motion: reduce)");
+const folderName = (p: string | null) => p?.split("/").filter(Boolean).at(-1) ?? "TinyPeeps";
 
 export function App() {
-  const [peeps, setPeeps] = useState<Peep[]>(START_PEEPS);
-  const [officeDir, setOfficeDir] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [drop, setDrop] = useState<Drop | null>(null);
-  const [totals, setTotals] = useState<Totals>({ opus: 0, sonnet: 0, haiku: 0 });
-  const [cached, setCached] = useState(0);
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [runtime, setRuntime] = useState<Record<string, Runtime>>({});
+  const [usage, setUsage] = useState<UsageRecord[]>([]);
+  const [limits, setLimits] = useState<Limits>(null);
+  const [page, setPage] = useState<Page>("office");
   const [sim, setSim] = useState(false);
   const [notice, setNotice] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [moment, setMoment] = useState<IslandState | null>(null);
+  const momentTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const commandRef = useRef<HTMLInputElement>(null);
+  const dark = useTheme(settings.theme);
+  const s = STRINGS[settings.language];
+  const office = settings.current;
+
+  const peeps: Peep[] = roles.map((r) => ({ ...r, ...(runtime[r.id] ?? freshRuntime()) }));
   const peepsRef = useRef(peeps);
   peepsRef.current = peeps;
+  const sRef = useRef(s);
+  sRef.current = s;
 
-  const patch = (id: string, fn: (p: Peep) => Partial<Peep>) => setPeeps((ps) => ps.map((p) => (p.id === id ? { ...p, ...fn(p) } : p)));
+  // The island shows what just happened for a moment, then goes back to the office summary.
+  const flash = (state: IslandState, ms: number) => {
+    clearTimeout(momentTimer.current);
+    setMoment(state);
+    momentTimer.current = setTimeout(() => setMoment(null), ms);
+  };
+
+  const patch = (id: string, fn: (p: Runtime) => Partial<Runtime>) =>
+    setRuntime((rt) => {
+      const cur = rt[id] ?? freshRuntime();
+      return { ...rt, [id]: { ...cur, ...fn(cur) } };
+    });
 
   const apply = (id: string, u: PeepUpdate) => {
-    const line = u.error ?? u.label ?? (u.text ? `💬 ${u.text.slice(0, 120)}` : null);
+    const t = sRef.current;
+    const err = u.error ? errorText(t, u.error) : null;
+    const line = err ?? (u.label ? labelText(t, u.label) : null) ?? (u.text ? `“${u.text.slice(0, 140)}”` : null);
+    const tokens = u.models ? Object.values(u.models).reduce((n, m) => n + freshTokens(m), 0) : 0;
     patch(id, (p) => ({
       activity: u.activity ?? p.activity,
       label: u.label ?? p.label,
       lastText: u.text ?? p.lastText,
-      log: line ? [...p.log, line].slice(-40) : p.log,
+      log: line ? [...p.log, { t: Date.now(), text: line }].slice(-80) : p.log,
       dropAt: u.done ? null : p.dropAt,
-      tokens: p.tokens + (u.usage ? fresh(u.usage) : 0),
+      tokens: p.tokens + tokens,
     }));
-    if (u.usage) {
-      const usage = u.usage;
-      const model = peepsRef.current.find((p) => p.id === id)?.model ?? "sonnet";
-      setTotals((t) => ({ ...t, [model]: t[model] + fresh(usage) }));
-      setCached((c) => c + usage.cacheRead);
+    const peep = peepsRef.current.find((x) => x.id === id);
+    if (!peep) return;
+    if (u.done) {
+      flash(
+        { kind: "done", key: `done-${id}-${Date.now()}`, name: peep.name, color: peep.color, text: err ? t.island.failed : t.island.done(compact(tokens)) },
+        3200,
+      );
+    } else if (u.label && u.label !== "init" && u.activity) {
+      flash({ kind: "work", key: `work-${id}-${u.label}`, name: peep.name, color: peep.color, activity: u.activity, text: labelText(t, u.label) }, 2600);
     }
   };
 
-  useEffect(() => window.tiny.onUpdate(apply), []);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: apply reads only refs and setters, so subscribing once is right
+  useEffect(() => {
+    window.tiny.getSettings().then(setSettings);
+    window.tiny.claudeConfig(null).then((c) => setLimits(c.limits));
+    const offs = [window.tiny.onUpdate(apply), window.tiny.onSettings(setSettings), window.tiny.onLimits(setLimits), window.tiny.onUsage(setUsage)];
+    return () => {
+      for (const off of offs) off();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!office) return;
+    window.tiny.officeData(office).then((d) => {
+      setRoles(d.roles);
+      setUsage(d.usage);
+      setRuntime({});
+    });
+  }, [office]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: flash only sets state; the notice text is the trigger
+  useEffect(() => {
+    if (!notice) return;
+    flash({ kind: "notice", key: `notice-${notice}-${Date.now()}`, text: notice }, 4000);
+    setNotice(""); // so the same notice can show again
+  }, [notice]);
+
+  // ⌘K opens the prompt box from any page.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPage("office");
+        setTimeout(() => commandRef.current?.focus(), 50);
+      }
+    };
+    addEventListener("keydown", onKey);
+    return () => removeEventListener("keydown", onKey);
+  }, []);
 
   // Simulation: fake activities so the office can be checked without spending tokens.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: apply reads only refs and setters
   useEffect(() => {
     if (!sim) return;
     const timer = setInterval(() => {
-      const p = peepsRef.current[Math.floor(Math.random() * peepsRef.current.length)];
+      const ps = peepsRef.current;
+      if (!ps.length) return;
+      const p = ps[Math.floor(Math.random() * ps.length)];
       const activity = SIM_ACTIVITIES[Math.floor(Math.random() * SIM_ACTIVITIES.length)];
-      apply(p.id, { activity, label: `(simulasi) ${SIM_LABELS[Math.floor(Math.random() * SIM_LABELS.length)]}` });
-    }, 1200);
-    return () => clearInterval(timer);
+      apply(p.id, { activity, label: `(sim) ${SIM_LABELS[Math.floor(Math.random() * SIM_LABELS.length)]}` });
+    }, 1400);
+    return () => {
+      clearInterval(timer);
+      setRuntime((rt) =>
+        Object.fromEntries(Object.entries(rt).map(([k, v]) => [k, v.label.startsWith("(sim)") ? { ...v, activity: "idle" as Activity, label: "" } : v])),
+      );
+    };
   }, [sim]);
 
   const run = async (peepId: string, prompt: string) => {
     const p = peepsRef.current.find((x) => x.id === peepId);
     if (!p) return;
-    if (!officeDir) {
-      setNotice("Pilih folder kantor dulu (kiri atas). Peep cuma kerja di folder itu.");
-      return;
+    if (!office) return setNotice(s.office.needFolder);
+    const task = s.label.task;
+    patch(peepId, (x) => ({
+      activity: "thinking",
+      log: [...x.log, { t: Date.now(), text: typeof task === "function" ? task(prompt.slice(0, 120)) : prompt }],
+    }));
+    const r = await window.tiny.run({ office, peepId, prompt });
+    if (r === "busy") setNotice(s.office.busy(p.name));
+  };
+
+  const saveRole = async (role: Role) => {
+    if (office) setRoles(await window.tiny.saveRole(office, role));
+  };
+
+  const working = peeps.filter((p) => isWorking(p.activity)).length;
+  const island: IslandState = moment ?? { kind: "idle", title: folderName(office), detail: s.island.idle(working) };
+  const onIsland = () => {
+    if (moment && moment.kind !== "idle" && moment.kind !== "notice") {
+      const p = peeps.find((x) => x.name === moment.name);
+      if (p) setSelectedId(p.id);
     }
-    patch(peepId, (x) => ({ activity: "thinking", label: "Nerima tugas", log: [...x.log, `📝 Tugas: ${prompt.slice(0, 120)}`] }));
-    const r = await window.tiny.run({ peepId, model: p.model, prompt, brief: p.brief, cwd: officeDir });
-    if (r === "busy") setNotice(`${p.name} masih kerja. Stop dulu atau tunggu selesai.`);
+    setPage("office");
   };
 
-  const onDrop = (peepId: string, at: Vec2) => {
-    const others = peepsRef.current.filter((p) => p.id !== peepId);
-    const near = others.find((o) => Math.hypot(o.desk[0] - at[0], o.desk[1] - at[1]) < 1.6) ?? null;
-    patch(peepId, () => ({ dropAt: at }));
-    setDrop({ peepId, room: roomAt(at), near });
-  };
-
-  const cancelDrop = () => {
-    if (drop) patch(drop.peepId, () => ({ dropAt: null }));
-    setDrop(null);
-  };
-
-  const selected = peeps.find((p) => p.id === selectedId) ?? null;
-  const working = peeps.filter((p) => !["idle", "queued", "stuck"].includes(p.activity)).length;
-
-  return (
-    <div className="app">
-      <Office peeps={peeps} selectedId={selectedId} onSelect={setSelectedId} onDrop={onDrop} />
-
-      <div className="topbar">
-        <b>TinyPeeps</b>
-        <button type="button" onClick={async () => setOfficeDir((await window.tiny.pickOffice()) ?? officeDir)}>
-          📁 {officeDir ? officeDir.split("/").slice(-2).join("/") : "Pilih folder kantor"}
-        </button>
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={sim}
-            onChange={(e) => {
-              setSim(e.target.checked);
-              if (!e.target.checked) setPeeps((ps) => ps.map((p) => (p.label.startsWith("(simulasi)") ? { ...p, activity: "idle", label: "" } : p)));
-            }}
-          />{" "}
-          Simulasi (0 token)
-        </label>
-      </div>
-
-      <div className="hud">
-        <div className="hud-big">{(totals.opus + totals.sonnet + totals.haiku).toLocaleString("id-ID")}</div>
-        <div className="muted">token baru sesi ini · +{cached.toLocaleString("id-ID")} dari cache</div>
-        <div className="hud-row">
-          {(Object.keys(totals) as Model[]).map((m) => (
-            <span key={m} className={`model ${m}`}>
-              {m} {totals[m].toLocaleString("id-ID")}
-            </span>
-          ))}
-        </div>
-        <div className="muted">{working} kerja · maks 3 barengan</div>
-      </div>
-
-      {notice && (
-        <button type="button" className="notice" onClick={() => setNotice("")}>
-          {notice} ✕
-        </button>
-      )}
-
-      {drop && <DropBox drop={drop} peeps={peeps} onCancel={cancelDrop} onSend={(prompt) => { run(drop.peepId, prompt); setDrop(null); }} onStop={() => { window.tiny.stop(drop.peepId); setDrop(null); }} />}
-
-      {selected && <SidePanel peep={selected} onClose={() => setSelectedId(null)} onModel={(m) => patch(selected.id, () => ({ model: m }))} onStop={() => window.tiny.stop(selected.id)} />}
-
-      <CommandBar peeps={peeps} onSend={run} />
-    </div>
-  );
-}
-
-function DropBox({ drop, peeps, onCancel, onSend, onStop }: { drop: Drop; peeps: Peep[]; onCancel: () => void; onSend: (prompt: string) => void; onStop: () => void }) {
-  const [text, setText] = useState("");
-  const peep = peeps.find((p) => p.id === drop.peepId);
-  if (!peep) return null;
-  const near = drop.near;
-  const nearContext = near?.lastText ? `\n\nHasil terakhir ${near.name} (${near.role}):\n${near.lastText.slice(0, 2000)}` : "";
-  const actions = [
-    ...(near
-      ? [
-          { label: `Review kerjaan ${near.name}`, prompt: `Review hasil kerja ${near.name} (${near.role}). Sebutkan yang bagus, yang kurang, dan saran konkret.${nearContext}` },
-          { label: `Kasih arahan ke ${near.name}`, prompt: `Tulis arahan singkat untuk ${near.name} (${near.role}) tentang langkah berikutnya.${nearContext}` },
-        ]
-      : []),
-    ...(drop.room?.actions ?? []),
+  const nav = [
+    { id: "office" as const, label: s.nav.office, icon: Building2 },
+    { id: "activity" as const, label: s.nav.activity, icon: ActivityIcon },
+    { id: "tasks" as const, label: s.nav.tasks, icon: ListChecks },
+    { id: "dashboard" as const, label: s.nav.dashboard, icon: ChartColumn },
+    { id: "team" as const, label: s.nav.team, icon: Users },
+    { id: "settings" as const, label: s.nav.settings, icon: SettingsIcon },
   ];
-  const where = near ? `ke deket ${near.name}` : drop.room ? `ke ${drop.room.name}` : "ke lorong";
+
   return (
-    <div className="dropbox">
-      <div className="dropbox-title">
-        {peep.name} dipindah {where}. Mau ngapain? <span className={`model ${peep.model}`}>{peep.model}</span>
+    <MotionConfig reducedMotion="user" transition={springs.fade}>
+      <div className="relative h-full overflow-hidden bg-stage">
+        {/* The office stays mounted: rebuilding the 3D scene on every visit was slow and crashed drei's labels. */}
+        <div className={page === "office" ? "absolute inset-0" : "invisible absolute inset-0"} aria-hidden={page !== "office"}>
+          <OfficePage
+            s={s}
+            active={page === "office"}
+            dark={dark}
+            reduced={reducedQuery.matches}
+            peeps={peeps}
+            usage={usage}
+            settings={settings}
+            sim={sim}
+            setSim={setSim}
+            run={run}
+            patch={patch}
+            saveRole={saveRole}
+            commandRef={commandRef}
+            selectedId={selectedId}
+            setSelectedId={setSelectedId}
+          />
+        </div>
+        <AnimatePresence initial={false}>
+          {page !== "office" && (
+            <motion.div
+              key={page}
+              className="absolute inset-0"
+              initial={{ opacity: 0, filter: "blur(4px)" }}
+              animate={{ opacity: 1, filter: "blur(0px)", transition: { duration: 0.28, ease: [0.16, 1, 0.3, 1] } }}
+              exit={{ opacity: 0, transition: exitFast }}
+            >
+              {page === "activity" && (
+                <ActivityPage
+                  s={s}
+                  peeps={peeps}
+                  onOpen={(id) => {
+                    setSelectedId(id);
+                    setPage("office");
+                  }}
+                />
+              )}
+              {page === "tasks" && <TasksPage s={s} usage={usage} peeps={peeps} />}
+              {page === "dashboard" && <DashboardPage s={s} usage={usage} peeps={peeps} limits={limits} />}
+              {page === "team" && <TeamPage s={s} office={office} roles={roles} saveRole={saveRole} />}
+              {page === "settings" && <SettingsPage s={s} settings={settings} />}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="drag absolute inset-x-0 top-0 h-[52px]" />
+        <MorphIsland state={island} onClick={onIsland} />
+        <RubberDock items={nav} active={page} onChange={setPage} />
       </div>
-      <div className="chips">
-        {actions.map((a) => (
-          <button type="button" key={a.label} onClick={() => onSend(a.prompt + (text ? `\n\nCatatan CEO: ${text}` : ""))}>
-            {a.label}
-          </button>
-        ))}
-        {drop.room?.id === "lounge" && (
-          <button type="button" onClick={onStop}>
-            Istirahat (stop)
-          </button>
-        )}
-      </div>
-      <textarea autoFocus placeholder="Atau ketik sendiri…" value={text} onChange={(e) => setText(e.target.value)} />
-      <div className="row">
-        <button type="button" className="ghost" onClick={onCancel}>
-          Batal
-        </button>
-        <button type="button" className="primary" disabled={!text.trim()} onClick={() => onSend(text + nearContext)}>
-          Kirim
-        </button>
-      </div>
-    </div>
+    </MotionConfig>
   );
 }
 
-function SidePanel({ peep, onClose, onModel, onStop }: { peep: Peep; onClose: () => void; onModel: (m: Model) => void; onStop: () => void }) {
-  return (
-    <aside className="panel">
-      <div className="row">
-        <h2>
-          {peep.name} <span className="muted">· {peep.role}</span>
-        </h2>
-        <button type="button" className="ghost" onClick={onClose}>
-          ✕
-        </button>
-      </div>
-      <div className="row">
-        <span>{ACTIVITY_LABEL[peep.activity]}</span>
-        <select value={peep.model} onChange={(e) => onModel(e.target.value as Model)}>
-          <option value="opus">opus</option>
-          <option value="sonnet">sonnet</option>
-          <option value="haiku">haiku</option>
-        </select>
-      </div>
-      <div className="muted">{peep.tokens.toLocaleString("id-ID")} token</div>
-      <button type="button" onClick={onStop}>
-        Stop
-      </button>
-      <h3>Hasil terakhir</h3>
-      <pre className="result">{peep.lastText || "Belum ada."}</pre>
-      <h3>Log</h3>
-      <ul className="log">
-        {[...peep.log].reverse().map((l, i) => (
-          <li key={`${i}-${l}`}>{l}</li>
-        ))}
-      </ul>
-    </aside>
-  );
-}
-
-function CommandBar({ peeps, onSend }: { peeps: Peep[]; onSend: (peepId: string, prompt: string) => void }) {
-  const [to, setTo] = useState("bos");
-  const [text, setText] = useState("");
-  const send = () => {
-    if (!text.trim()) return;
-    onSend(to, text);
-    setText("");
-  };
-  return (
-    <div className="command">
-      <select value={to} onChange={(e) => setTo(e.target.value)}>
-        {peeps.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.name} ({p.model})
-          </option>
-        ))}
-      </select>
-      <input placeholder="Mau bikin apa hari ini?" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} />
-      <button type="button" className="primary" onClick={send}>
-        Kirim
-      </button>
-    </div>
-  );
+function errorText(s: Strings, e: string): string {
+  const [key, rest] = [e.split(":")[0], e.slice(e.indexOf(":") + 1)];
+  const v = s.label[key];
+  if (typeof v === "function") return key === "exited" ? v(Number(rest)) : v(rest);
+  return typeof v === "string" ? v : e;
 }

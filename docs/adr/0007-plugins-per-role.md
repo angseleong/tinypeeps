@@ -1,6 +1,6 @@
 # 7. Plugins and MCP servers per Role
 
-Status: proposed (2026-11-16).
+Status: accepted in part (2026-11-16). Tools and MCP servers per Role work; plugins per Role don't (below).
 
 ## Context
 
@@ -20,3 +20,13 @@ five times over.
 
 - A Peep may lack a tool it needs. It says so in its Handoff Note, and the Boss can suggest adding it.
 - The measured cost is an estimate per Claude Code version; it's re-measured when the version changes.
+
+## What we found (2026-11-16, Claude Code 2.1.292)
+
+- **Tools are most of the cost.** Context per turn: 33.6k with everything, 26.4k with `--safe-mode`,
+  6.5k with `--safe-mode --tools Read,Grep,Glob`. Each tool's definition is sent every turn.
+- **Plugins can't be picked per Role.** In `--safe-mode`, a plugin passed with `--plugin-dir` is listed
+  but its skills don't load; outside it, turning plugins off through `--settings` changed nothing.
+- So a Role is **lean** (`--safe-mode`, its own `--tools`, its own MCP servers) or **everything**
+  (all the CEO's plugins, skills, hooks and CLAUDE.md). The Team page measures what each Role starts
+  every turn with, instead of a cost per plugin.

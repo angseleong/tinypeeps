@@ -24,7 +24,7 @@ Commands: `npm run dev` (the app), `npm test`, `npm run typecheck`.
 
 The repository is public: never commit real
 transcripts, prompts, tokens or file paths from anyone's sessions (`docs/test-data.md` once it exists).
-Background: `CONTEXT.md` (words), `docs/adr/` (decisions), `docs/architecture.md` (how it fits),
+What to build next: `TODO.md` (packages 0, A, B, C, D; tick an item only when it works in the real window). Background: `CONTEXT.md` (words), `docs/adr/` (decisions), `docs/architecture.md` (how it fits),
 `docs/token-savings.md` (how cost is counted), `docs/privacy.md` (promises to the CEO).
 
 **Two rules every change keeps:**
