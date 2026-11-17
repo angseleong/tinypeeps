@@ -10,17 +10,22 @@ nothing covers it yet. A row points to a test file once the app exists.
 | Claude Code not installed | Says so, links the install guide, nothing else starts | Planned |
 | Claude Code installed, not signed in | Says so, explains `claude` sign-in, checks again | Planned |
 | Claude Code version not tested with this release | Warns once, keeps working | Planned |
-| CEO describes a company | Boss proposes Roles with model, plugins and a reason each | Planned |
-| CEO picks a Template | Team arrives without questions | Planned |
-| CEO rejects the proposal | Boss asks what to change; nothing has run | Planned |
+| New Office | Only the Manager and the CEO are in it | Planned |
+| CEO says what they want | Kickoff: the Manager asks questions back, one at a time, in the Meeting Room | Planned |
+| Kickoff done | Manager writes the Brief; existing files are extended, never replaced | Planned |
+| Brief written | Hiring Plan cards: Roles with model, tools, Skills and a reason each | Planned |
+| CEO edits a card | Role, model or Skills change before anything runs | Planned |
+| A proposed Skill isn't installed | Installing it is an Approval showing where it comes from | Planned |
+| CEO rejects the Hiring Plan | Manager asks what to change; nothing has run | Planned |
+| CEO starts from a saved Template | Team arrives without a Kickoff | Planned |
 | Team approved | Peeps walk in one by one and sit down | Planned |
 
 ## Working
 
 | State or event | Expected | Covered by |
 |---|---|---|
-| Goal typed in the Command Bar | Boss makes Tasks, shown on the board | Planned |
-| Boss autonomy off | Tasks wait in Backlog for the CEO to assign | Planned |
+| Goal typed in the Command Bar | Manager makes Tasks, shown on the board | Planned |
+| Manager autonomy off | Tasks wait in Backlog for the CEO to assign | Planned |
 | More Peeps working than the Concurrency Limit | Extra ones wait on the sofa, start in order | Planned |
 | Peep reads, writes, searches, runs | Activity changes within 200 ms of the hook event | Planned |
 | Unknown tool or MCP tool | Shown as Running | Planned |
@@ -29,6 +34,12 @@ nothing covers it yet. A row points to a test file once the app exists.
 | Task fails on the Role's default model | Retried once on `escalate_to`, counted as an Escalation | Planned |
 | Session crashes | Peep shows Stuck, Task back to Backlog, Usage kept from the transcript | Planned |
 | App quits with Peeps working | Asks first; on quit, sessions stop and Tasks go back to Backlog | Planned |
+| Task finished | Peep takes it to the Manager's Office; review gives Pass or Changes | Planned |
+| Review says Changes | Task goes back once on `escalate_to` with the list; a second Changes goes to the CEO | Planned |
+| Manager proposes hiring mid-project | Shown as an Approval with the Role card | Planned |
+| CEO presses Meeting now | Chosen Peeps finish their current step and walk to the Meeting Room | Planned |
+| CEO presses Pause all | Each Peep finishes its Task, then goes to the Lounge | Planned |
+| CEO presses Stop all | Asks once; every session stops, Tasks back to Backlog, Usage kept | Planned |
 
 ## Drop
 

@@ -18,7 +18,9 @@ Commands: `npm run dev` (the app), `npm test`, `npm run typecheck`.
 - `src/desktop`: Electron main and preload (windows, IPC, the local hook receiver).
 - `src/app`: the window, React + Tailwind; only reads what the engine publishes.
 - `src/app/office`: the 3D office, React Three Fiber; it draws Activities, it never decides them.
-- `templates/`: the Templates that ship with the app.
+- `templates/`: Template format examples (v1 ships no Templates: every Office starts with the Manager,
+  [ADR 8](docs/adr/0008-every-office-starts-with-the-manager.md)).
+- `skills/`: the Skills the Manager ships with (`brief`, `review`), [ADR 9](docs/adr/0009-skills-per-role-with-base-skills.md).
 - `test/`: tests against a pretend Claude Code (`test/pretend`) fed by recorded, scrubbed hook events.
 - `spikes/`: throwaway code that answers one question. The app never imports it.
 

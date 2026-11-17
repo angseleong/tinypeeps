@@ -43,16 +43,18 @@ part of the site whose components are built to be copied, adapted to our warm ac
 
 | Screen | Answers |
 |---|---|
-| First run | Is Claude Code installed and signed in? Describe a company or pick a Template |
-| Team proposal | Who will work here, on which model, with which plugins, and why? |
-| Office | Who's doing what right now, and who needs me? |
+| First run | Is Claude Code installed and signed in? Then the Manager's first Kickoff question |
+| Brief | What did the Manager understand, and what's still open? |
+| Meeting Room | What does the Manager need from me, and what did we decide? A full-height chat on the left, the Manager's replies in Markdown |
+| Hiring Plan | Who will work here, on which model, with which Skills, and why? What do I want to change? |
+| Office | Who's doing what right now, and who needs me? Meeting now, Pause all, Stop all |
 | Peep panel | What is this Peep doing, what did it make, what did it cost? |
 | Drop Box | What do I want this Peep to do here? |
 | Approval | What is this Peep asking, and what happens if I allow it? |
 | Tasks | What's queued, running, in review and done? |
 | Dashboard | What did this week cost, and how much did I save? |
 | Team | What is each Role, and what does it cost to run? |
-| Settings | Language, theme, Concurrency Limit, Boss autonomy, Claude Code path |
+| Settings | Language, theme, Concurrency Limit, Manager autonomy, Base Skills, Claude Code path |
 
 ## Colour
 
@@ -65,7 +67,7 @@ Light is the main theme, to match the warm office. Dark has to work too. Draft t
 | `line` | `#e7e1d8` | `#34302b` | Borders |
 | `text` | `#24211d` | `#f1ece4` | Main text |
 | `muted` | `#7a736a` | `#a59d92` | Secondary text |
-| `accent` | `#b5552f` | `#ec8a5e` | Primary action, Boss (text on it: white in light, near-black in dark, 4.5:1) |
+| `accent` | `#b5552f` | `#ec8a5e` | Primary action, Manager (text on it: white in light, near-black in dark, 4.5:1) |
 | `good` | `#5f8f6b` | `#7fb38b` | Saving, Done |
 | `wait` | `#d9a441` | `#e6b95c` | Waiting for Approval |
 | `stuck` | `#c4524a` | `#e06b62` | Stuck, Escalation |

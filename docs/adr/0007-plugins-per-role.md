@@ -1,6 +1,7 @@
 # 7. Plugins and MCP servers per Role
 
 Status: accepted in part (2026-11-16). Tools and MCP servers per Role work; plugins per Role don't (below).
+Skills per Role and the Base Skills every Peep holds: [ADR 9](0009-skills-per-role-with-base-skills.md).
 
 ## Context
 
@@ -18,7 +19,7 @@ five times over.
 
 ## Consequences
 
-- A Peep may lack a tool it needs. It says so in its Handoff Note, and the Boss can suggest adding it.
+- A Peep may lack a tool it needs. It says so in its Handoff Note, and the Manager can suggest adding it.
 - The measured cost is an estimate per Claude Code version; it's re-measured when the version changes.
 
 ## What we found (2026-11-16, Claude Code 2.1.292)

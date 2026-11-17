@@ -4,14 +4,14 @@ Everything left before **v0.1**, grouped in packages. Each package ends with som
 app, then merges to `main`. Every item comes from a doc; the doc is named so you can check what "done"
 means. Tick an item only when it works in the real window.
 
-Order: **0 → A → B → C → D**, about 3 weeks of full days.
+Order: **0 → A → B → C → D**, about 3 to 4 weeks of full days.
 
 | Package                                | Days  | You can try                                              |
 | -------------------------------------- | ----- | -------------------------------------------------------- |
 | [Done: prototype](#done-prototype)     | –     | Capsule Peeps, simulation, Drop, real `claude -p` tasks  |
 | [0. Pretty UI](#0-pretty-ui)           | 1.5–2 | The app looks finished outside the 3D office             |
 | [A. Thrifty office](#a-thrifty-office) | 2–3   | Real savings numbers, Roles you can edit                 |
-| [B. A real Boss](#b-a-real-boss)       | 3–4   | One Goal in, the team works, you only approve            |
+| [B. A real Manager](#b-a-real-manager) | 4–5   | Kickoff, Hiring Plan, the team works, you only approve   |
 | [C. Pretty office](#c-pretty-office)   | 4–5   | Low-poly characters that look like an animated explainer |
 | [D. Ready to ship](#d-ready-to-ship)   | 2–3   | Someone else downloads it and starts in 3 minutes        |
 
@@ -48,7 +48,7 @@ The shell every later page is built in, so nothing gets restyled twice.
 - [x] **Reduce motion:** UI animation off; in the office Peeps slide instead of hop, no Drop wobble
       ([scenarios.md](docs/scenarios.md#drop))
 - [x] **Words:** every on-screen word in `src/core/strings/`, English and Indonesian, language setting
-- [x] **Settings page:** language, theme, Concurrency Limit, Boss autonomy, Claude Code path (removes
+- [x] **Settings page:** language, theme, Concurrency Limit, Manager autonomy, Claude Code path (removes
       the PATH `shortcut:` in `src/main/index.ts`)
 - [x] **Code health:** Biome (lint, format), GitHub Actions CI running lint, typecheck and tests
 
@@ -88,37 +88,66 @@ Left from 0 and A, small: CI has only run locally (`npm run check`), not on GitH
 and the transcript fallback after a crash haven't been checked in the real window; drei's `<Html>`
 labels log "synchronously unmount a root" warnings on start.
 
-## B. A real Boss
+## B. A real Manager
 
 The CEO gives a Goal and only approves. [ADR 4](docs/adr/0004-memory-is-files-the-app-writes.md),
 [ADR 5](docs/adr/0005-approvals-follow-claude-code-permissions.md), [prd.md](docs/prd.md#2-give-work)
 
-- [ ] **Spike `hook-listener`:** command hooks write events to a local socket the Engine reads;
+- [ ] **Spike `hook-listener`** (smaller now: Approvals don't need hooks): command hooks write events to a local socket the Engine reads;
       reachable only from this computer ([SECURITY.md](SECURITY.md#whats-in-scope))
 - [ ] **Hooks wired:** `SessionStart/End`, `UserPromptSubmit`, `Pre/PostToolUse`, `PostToolUseFailure`,
       `SubagentStart/Stop`, `PermissionRequest`, `Notification`, `Stop`; Activity within 200 ms
 - [ ] **Activities complete** ([office.md](docs/office.md#activities)): Thinking after a few seconds
       without a tool, Delegating (helper appears and leaves), Stuck only after two failures in a row
       (today it's one), Waiting for Approval
-- [ ] **Spike `permission-host`**, then **Approvals:** `--permission-prompts host` +
-      `--permission-prompt-tool` served by the Engine; fallback is a blocking `PreToolUse` hook (rewrite
-      ADR 5 if used). Removes the `acceptEdits` `shortcut:`
+- [x] **Spike `permission-host`**, then **Approvals:** `--input-format stream-json`,
+      `--permission-prompts host`, `--permission-prompt-tool stdio`; the `acceptEdits` `shortcut:` is
+      gone ([ADR 5](docs/adr/0005-approvals-follow-claude-code-permissions.md#what-we-found-2026-11-17-claude-code-21292))
 - [ ] **Approval flow:** Peep walks to the CEO's desk, request in plain words, Allow / Deny / "always
       allow this for this Role"; the CEO's own allow rules still skip the question; never
-      `bypassPermissions`
+      `bypassPermissions`. Built and passing against real Claude Code from the Engine; tick after a
+      click-through in the real window
 - [ ] **Approval pile:** several stack oldest first, HUD count, system notification when the window is
-      hidden
-- [ ] **Boss plans:** a Goal in the Command Bar → the Boss (Opus, planning only) returns Tasks with a
-      Peep and a model each, with a one-line reason; Boss autonomy off leaves them in Backlog
+      hidden. Built (oldest card on top, "+N more", HUD count, notification); tick after the window check
+- [x] **Spike `skills-per-peep`:** a lean session loads no `.claude/skills/`; Skills as files listed in
+      the brief work ([ADR 9](docs/adr/0009-skills-per-role-with-base-skills.md#what-the-spike-found-2026-11-17-claude-code-21292));
+      Role files have `skills:`
+- [ ] **Measure Base Skills:** what caveman, ponytail and the Matt Pocock skills add per turn against
+      the 10% rule, and that review verdicts stay as good
+- [ ] **Base Skills:** caveman and ponytail rules in every Peep's system prompt (read from the CEO's
+      installed plugins), Matt Pocock skills on the Manager only; listed in Settings, each can be
+      turned off; their size shows on the Team page
+- [ ] **Kickoff and Brief** ([ADR 8](docs/adr/0008-every-office-starts-with-the-manager.md)): a new
+      Office has only the Manager; the CEO's first message starts the Kickoff (`grilling`, in the
+      Meeting Room); then the Manager writes the Brief with `skills/brief`. Built: a new Office opens
+      on the Meeting Room panel; the Manager's session stays open between the CEO's lines and counts
+      tokens per turn. Clicked through in the real window with Opus
+      ([ADR 8](docs/adr/0008-every-office-starts-with-the-manager.md#what-we-found-2026-11-17-claude-code-21292));
+      the meeting chat is saved in `.tinypeeps/meeting.json` and comes back after a restart
+- [ ] **Hiring Plan:** draft Role files in `.tinypeeps/hiring/` as cards (job, model, tools, Skills
+      from `find-skills`, one-line `why`); the CEO edits any card, removes or adds Roles, then approves
+      or rejects (asks what to change, nothing run); installing a Skill is an Approval; hiring later
+      works the same way ([templates.md](docs/templates.md#the-hiring-plan)). Built: cards with name,
+      job, model, Skills (⚠ when not on this computer), remove, "Ask for changes", Approve seats each
+      hire; Skills already on this computer are copied into `.tinypeeps/skills/`. Passed once against
+      real Claude Code; tick after the window check
+- [ ] **Manager plans:** a Goal in the Command Bar → the Manager (Opus, planning only) returns Tasks with a
+      Peep and a model each, with a one-line reason; Manager autonomy off leaves them in Backlog
 - [ ] **Tasks page:** kanban Backlog → Working → Review → Done; cards show Avatar, model, tokens; drag a
       card onto a Peep to assign
-- [ ] **Review and Escalation:** the Boss reviews finished Tasks; a rejected one runs once more on
-      `escalate_to`, counted; when a Peep's Handoff Note says it lacked a tool, the Boss suggests adding it
+- [ ] **Review and Escalation:** a finished Task goes to the Manager's Office; the Manager reviews it
+      with `skills/review` (Pass or Changes); Changes runs once more on `escalate_to` with the list,
+      counted, and a second Changes goes to the CEO; when a Peep's Handoff Note says it lacked a tool, the Manager suggests adding it
 - [ ] **Quick Actions complete** ([office.md](docs/office.md#rooms-in-v1)): CEO Office "What do you need
       from me?", Meeting Room "Plan this together" / "Hand over to [Peep]", next to a Peep "Ask for
       progress" / "Help them", Lounge "Take a break" stops after the current Task, "Stop and do this
       first" sends the current Task back to Backlog; dropping at its own desk ends the Drop; Quick
       Actions live as data per Room
+- [ ] **CEO controls** ([prd.md](docs/prd.md#2-give-work)): Meeting now (chosen Peeps finish their
+      step and meet in the Meeting Room), Pause all (after the current Task), Stop all (asks once;
+      Tasks back to Backlog, Usage kept). All three are built in the HUD, not yet checked in the window.
+      Meeting now pauses everyone and opens the Meeting Room with the Manager, given each Peep's latest
+      result; Peeps walking to the room waits for the layout in C
 - [ ] **Memory:** Handoff Note (≤150 words) saved to `.tinypeeps/notes/<task>.md`; `company.md`; a new
       Task gets Company Note + Role brief + related notes only; never `--resume`; side panel shows and
       edits notes, and lists the files the Peep produced (from its Write and Edit calls)
@@ -142,11 +171,15 @@ From capsules to a warm low-poly office. [office.md](docs/office.md)
       checked on each pack's page, listed in `assets/CREDITS.md`
 - [ ] **Look:** matte toon material, cream/terracotta/sage palette, baked soft shadows, isometric
       camera with a little rotate and zoom
-- [ ] **Layout `studio-small`:** CEO Office, Desks, Lounge (sofa, coffee machine), Review Room,
-      Meeting Room (missing today), Library, a door
+- [ ] **Layout `studio-small`** ([office.md](docs/office.md#rooms-in-v1)): CEO Office, Manager's
+      Office, Meeting Room, Library with the Skill Shelf, Desks, Server Room, Front Door, Archive,
+      Lounge (sofa, coffee machine)
 - [ ] **Poses per Activity:** laptop typing, open book, library shelf or phone, server rack, thought
       bubble, helper peep, paper to the CEO, red "!", coffee, sofa; Role-renamed Activity labels
 - [ ] **Walking:** simple paths around furniture, face where they go
+- [ ] **Alive details** ([office.md](docs/office.md#details-that-make-it-feel-alive)): desk monitor
+      shows the real tool, a folder flies on hand-over, faces from how it's going, a celebration and a
+      victory move on Pass
 - [ ] **Drop polish:** hover glow with name, Role and model; squash and stretch on pick-up; spring
       limbs; valid Rooms and Peeps highlight while carrying; landing bounce; nod and walk after Send
 - [ ] **Arrival:** Peeps walk in through the door one by one, wave, sit, show a name and model badge;
@@ -161,14 +194,13 @@ From capsules to a warm low-poly office. [office.md](docs/office.md)
 Someone who isn't us can install it and start. [prd.md](docs/prd.md#1-start-an-office),
 [templates.md](docs/templates.md), [privacy.md](docs/privacy.md)
 
-- [ ] **First run:** Claude Code installed? signed in? (says how to fix each), then two ways in:
-      describe the company or pick a Template
-- [ ] **Team proposal:** the Boss proposes Roles with model, plugins and a reason each; reject asks what
-      to change with nothing run; approve plays the Arrival
-- [ ] **Templates:** Content Studio (Remotion suggested for the video editor), Dev Studio, Blank, in
-      `templates/`; `template.md` format; Room Quick Actions per Template
-- [ ] **Export / import:** a Template folder without `notes/` or `board.json`; import never runs
-      commands and shows every tool it turns on ([SECURITY.md](SECURITY.md#whats-in-scope)); Roles borrowed from The
+- [ ] **First run:** Claude Code installed? signed in? (says how to fix each), then the Manager's
+      first Kickoff question
+- [ ] **Save as Template / start from one:** export an Office's Roles and Company Note without
+      `notes/`, `hiring/`, `board.json` or the Brief; a new Office from a Template skips the Kickoff;
+      `template.md` format ([templates.md](docs/templates.md)). No Templates ship
+- [ ] **Import safety:** importing a Template never runs
+      commands and shows every tool and Skill it turns on ([SECURITY.md](SECURITY.md#whats-in-scope)); Roles borrowed from The
       Agency keep `source:` and `templates/CREDITS.md`
 - [ ] **Privacy:** "Remove everything" setting; the data folder's location written into privacy.md;
       update check against GitHub Releases only
@@ -180,9 +212,9 @@ Someone who isn't us can install it and start. [prd.md](docs/prd.md#1-start-an-o
       tested" table up to date
 - [ ] **Repository:** private vulnerability reporting on, triage labels created
       ([docs/agents/triage-labels.md](docs/agents/triage-labels.md)), Dependabot
-- [ ] **Check the targets** ([prd.md](docs/prd.md#how-well-know-it-works)): install → Peeps walk in
-      under 3 minutes, 0 office tokens, Saving ≥40% on the Content Studio demo Goal, every Approval a
-      terminal would ask, 60 fps idle / never under 30
+- [ ] **Check the targets** ([prd.md](docs/prd.md#how-well-know-it-works)): install → first
+      Kickoff question under 3 minutes, Kickoff → Peeps walking in under 15, 0 office tokens, Saving
+      ≥40% on a demo content Goal, every Approval a terminal would ask, 60 fps idle / never under 30
 
 ## After v0.1
 
@@ -193,9 +225,10 @@ accounts or cloud sync: Templates stay files on GitHub.
 ## Open questions
 
 - Is the overall Weekly Limit enough, since `rate_limits` has no per-model windows? Decide in A.
+- Can Skills load per Role in a lean session? The `skills-per-peep` spike in B answers it.
 - Can plugins come back per Role? Only if Claude Code gets a way to load chosen plugins without the
   rest; until then a Role loads none (lean) or all (everything).
-- How should the Boss pick a model when the Role default isn't obvious? Start with defaults and
+- How should the Manager pick a model when the Role default isn't obvious? Start with defaults and
   Escalation; revisit with data after B.
 - Hooks or `stream-json` for Activities? The prototype uses `stream-json` alone; B adds hooks for what
   the stream doesn't carry (permissions, subagents, notifications). Update

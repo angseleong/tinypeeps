@@ -12,19 +12,36 @@ without using any brand's characters, logos or assets.
 
 ## Rooms in v1
 
-The layout is fixed by the Template. Every Template has the first three.
+The first layout has every Room below. Each Room is visited because of something real (a hook event,
+a Task status, a CEO button), never because a model chose to walk there.
 
-| Room | For | Quick Actions when a Peep is dropped here |
+| Room | A Peep goes there when | Quick Actions when a Peep is dropped here |
 |---|---|---|
-| CEO Office | The CEO's desk, where Approvals pile up as paper | "Report to me", "What do you need from me?" |
-| Desks | Where each Peep works | (dropping back at its desk ends the Drop) |
-| Lounge | Coffee machine and sofa: Idle and Queued Peeps | "Take a break" (stop after this Task) |
-| Review Room | Checking work | "Review [Peep]'s latest work", "Check against the Goal" |
-| Meeting Room | Two or more Peeps sharing context | "Plan this together", "Hand over to [Peep]" |
-| Library | Reading and research | "Research this", "Read the folder and brief me" |
+| CEO Office | It needs an Approval (`PermissionRequest`): paper piles on the CEO's desk | "Report to me", "What do you need from me?" |
+| Manager's Office | Its Task moves to Review: it queues with a folder while the Manager reviews | "Review my work", "Check against the Brief" |
+| Meeting Room | Kickoff, "Meeting now", or a Task handed from one Peep to another | "Plan this together", "Hand over to [Peep]" |
+| Library | Researching (`WebSearch`, `WebFetch`) or reading many files; the Skill Shelf stands here | "Research this", "Read the folder and brief me", "Find a Skill for this" |
+| Desks | Typing or Thinking at its own desk | (dropping back at its desk ends the Drop) |
+| Server Room | Running (`Bash`, an MCP tool) | "Run it again", "Explain what failed" |
+| Front Door | It was just hired: walks in, waves, finds its desk | – |
+| Archive | Its Task is Done: drops the Handoff Note's folder in a cabinet, then goes Idle | "What did we finish today?" |
+| Lounge | Idle (coffee) or Queued (sofa) | "Take a break" (stop after this Task) |
 
 Dropping a Peep **next to another Peep** offers actions about that Peep, whatever the Room: "Review
 their work", "Give them direction", "Ask for progress", "Help them".
+
+Left out on purpose: a War Room (the Meeting Room does the job) and a Studio for media files (comes
+with a content Template, once one exists).
+
+## CEO controls
+
+Three buttons always on screen, beside the HUD ([prd.md](prd.md#2-give-work)):
+
+| Button | What the office shows |
+|---|---|
+| Meeting now | Chosen Peeps finish their current step and walk to the Meeting Room; chairs fill one by one |
+| Pause all | Each Peep finishes its Task, stretches and walks to the Lounge |
+| Stop all | Asks once; then every Peep stops where it is, its screen goes dark, and it walks to the Lounge |
 
 ## Activities
 
@@ -67,6 +84,24 @@ The wobble is a spring on the legs and arms, not a physics ragdoll
 When the CEO approves a team, Peeps walk in through the door one at a time, wave, and sit at their
 desk, with their name and model on a small badge. This is the app's signature moment; keep it under
 about 6 seconds for 5 Peeps.
+
+## Details that make it feel alive
+
+All from data the app already has, so they cost no tokens. Ideas seen in
+[My Virtual Office](https://github.com/eliautobot/my-virtual-office) (AGPL-3.0: ideas only, no code).
+
+**In v1:**
+
+| Detail | From |
+|---|---|
+| The desk monitor shows the real tool: the command, the file, the site | `PreToolUse` input |
+| A folder flies from one desk to another when work is handed over | Task reassigned, or a Handoff Note read by another Peep |
+| A face for how it's going: focused, stuck, relieved | Activity and the Task's last result |
+| A small celebration and the Peep's own victory move when a Task passes review | Review verdict Pass |
+| The Skill Shelf in the Library shows every Skill and who holds it | Role files |
+
+**Later:** a morning stand-up and a "Daily Office" page filled from the Task board (never written by a
+model), day and night, an office pet, previews of a Peep's files above its desk.
 
 ## Art
 

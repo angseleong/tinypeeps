@@ -5,7 +5,7 @@ fewer tokens, and enjoy it?
 
 TinyPeeps is still being planned, so the most useful help right now is questioning the decisions in
 [docs/adr/](docs/adr/) and building the spikes they ask for. Before a bigger change, open an issue
-first so we can agree on what to build. For the words the project uses (Peep, Boss, Office, Drop,
+first so we can agree on what to build. For the words the project uses (Peep, Manager, Office, Drop,
 Approval…) read [CONTEXT.md](CONTEXT.md); for what we're building, [docs/prd.md](docs/prd.md); for the
 look, [docs/design-system.md](docs/design-system.md) and [docs/office.md](docs/office.md).
 

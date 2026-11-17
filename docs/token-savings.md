@@ -7,7 +7,7 @@ the [README](../README.md). Built in package A: `src/core/usage.ts`, `src/core/p
 
 | Cost | Cut by |
 |---|---|
-| Running everything on Opus | Default model per Role; Opus only for the Boss's planning and reviews ([ADR 6](adr/0006-model-per-role-with-escalation.md)) |
+| Running everything on Opus | Default model per Role; Opus only for the Manager's planning and reviews ([ADR 6](adr/0006-model-per-role-with-escalation.md)) |
 | Plugins and MCP servers a Role doesn't use | Each Role loads only its own ([ADR 7](adr/0007-plugins-per-role.md)) |
 | Resuming long conversations | Fresh sessions with Handoff Notes ([ADR 4](adr/0004-memory-is-files-the-app-writes.md)) |
 | Asking models what they're doing | Never: the office reads hooks ([ADR 2](adr/0002-the-office-costs-no-tokens.md)) |
