@@ -1,6 +1,7 @@
-import { ArrowUp, Square, X } from "lucide-react";
+import { ArrowUp, Pause, Play, Square, Users, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { type CSSProperties, type RefObject, useEffect, useRef, useState } from "react";
+import { type Answer, type Approval, allowRule, approvalKind } from "../../../core/approval";
 import { MODELS, type Model, type Role } from "../../../core/roles";
 import type { Settings } from "../../../core/settings";
 import type { Strings } from "../../../core/strings";
@@ -19,6 +20,11 @@ type Props = {
   peeps: Peep[];
   usage: UsageRecord[];
   settings: Settings;
+  approvals: Approval[];
+  paused: boolean;
+  setPaused: (on: boolean) => void;
+  meetingOpen: boolean;
+  onMeetingNow: () => void;
   sim: boolean;
   setSim: (v: boolean) => void;
   run: (peepId: string, prompt: string) => void;
@@ -58,8 +64,32 @@ export function OfficePage(p: Props) {
     <div className="absolute inset-0">
       <Office s={s} active={p.active} dark={p.dark} reduced={p.reduced} peeps={peeps} selectedId={selectedId} onSelect={setSelectedId} onDrop={onDrop} />
 
-      <Hud s={s} usage={p.usage} peeps={peeps} max={p.settings.concurrency} sim={p.sim} setSim={p.setSim} hidden={!!selected} />
-      <Roster s={s} peeps={peeps} selectedId={selectedId} onSelect={(id) => setSelectedId(selectedId === id ? null : id)} />
+      <Hud
+        s={s}
+        usage={p.usage}
+        peeps={peeps}
+        max={p.settings.concurrency}
+        approvals={p.approvals.length}
+        paused={p.paused}
+        setPaused={p.setPaused}
+        onMeetingNow={p.meetingOpen ? undefined : p.onMeetingNow}
+        sim={p.sim}
+        setSim={p.setSim}
+        hidden={!!selected}
+      />
+      <AnimatePresence>
+        {p.approvals[0] && (
+          <ApprovalCard
+            key={p.approvals[0].id}
+            s={s}
+            approval={p.approvals[0]}
+            peep={peeps.find((x) => x.id === p.approvals[0].peepId)}
+            more={p.approvals.length - 1}
+            onAnswer={(a) => window.tiny.answer(p.approvals[0].id, a)}
+          />
+        )}
+      </AnimatePresence>
+      {!p.meetingOpen && <Roster s={s} peeps={peeps} selectedId={selectedId} onSelect={(id) => setSelectedId(selectedId === id ? null : id)} />}
 
       <AnimatePresence>
         {drop && (
@@ -94,7 +124,7 @@ export function OfficePage(p: Props) {
         )}
       </AnimatePresence>
 
-      <PromptBox s={s} peeps={peeps} onSend={p.run} inputRef={p.commandRef} />
+      {!p.meetingOpen && <PromptBox s={s} peeps={peeps} onSend={p.run} inputRef={p.commandRef} />}
     </div>
   );
 }
@@ -104,6 +134,10 @@ function Hud({
   usage,
   peeps,
   max,
+  approvals,
+  paused,
+  setPaused,
+  onMeetingNow,
   sim,
   setSim,
   hidden,
@@ -112,6 +146,10 @@ function Hud({
   usage: UsageRecord[];
   peeps: Peep[];
   max: number;
+  approvals: number;
+  paused: boolean;
+  setPaused: (on: boolean) => void;
+  onMeetingNow?: () => void;
   sim: boolean;
   setSim: (v: boolean) => void;
   hidden: boolean;
@@ -119,6 +157,7 @@ function Hud({
   const today = totals(since(usage, startOfToday()));
   const saved = savingPercent(totals(since(usage, weekAgo())));
   const working = peeps.filter((x) => isWorking(x.activity)).length;
+  const [confirmStop, setConfirmStop] = useState(false);
   return (
     <motion.div
       initial={{ opacity: 0, x: 20 }}
@@ -143,12 +182,99 @@ function Hud({
       <div className="flex items-center justify-between px-2 pt-2.5 pb-1 text-[12px] text-muted">
         <span>{s.hud.working(working, max)}</span>
         <span>
-          {s.hud.approvals} <b className="font-semibold text-ink">0</b>
+          {s.hud.approvals} <b className={cx("font-semibold", approvals ? "text-wait" : "text-ink")}>{approvals}</b>
         </span>
       </div>
+      {paused && <div className="px-2 pb-1 text-[12px] text-wait">{s.controls.paused}</div>}
+      {confirmStop ? (
+        <div className="flex flex-col gap-2 rounded-tile bg-fill-1 p-3 text-[13px]">
+          <span>{s.controls.stopAllConfirm}</span>
+          <div className="flex justify-end gap-2">
+            <Button onClick={() => setConfirmStop(false)}>{s.drop.cancel}</Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                window.tiny.stopAll();
+                setConfirmStop(false);
+              }}
+            >
+              {s.controls.stopAllYes}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2 px-1 py-1">
+          {onMeetingNow && (
+            <Button className="col-span-2" onClick={onMeetingNow} title={s.meeting.nowHint}>
+              <Users size={12} /> {s.meeting.now}
+            </Button>
+          )}
+          <Button onClick={() => setPaused(!paused)} title={paused ? undefined : s.controls.pauseHint}>
+            {paused ? <Play size={12} /> : <Pause size={12} />} {paused ? s.controls.resume : s.controls.pause}
+          </Button>
+          <Button onClick={() => setConfirmStop(true)}>
+            <Square size={11} /> {s.controls.stopAll}
+          </Button>
+        </div>
+      )}
       <div className="flex items-center justify-between px-2 py-1.5 text-[13px]">
         <span className="text-ink-2">{s.office.simulation}</span>
         <Toggle on={sim} onChange={setSim} label={s.office.simulation} />
+      </div>
+    </motion.div>
+  );
+}
+
+// The oldest Approval, in plain words, at the top of the office. The Peep is already standing at the
+// CEO's desk; nothing goes on until the CEO answers (ADR 5).
+function ApprovalCard({
+  s,
+  approval,
+  peep,
+  more,
+  onAnswer,
+}: {
+  s: Strings;
+  approval: Approval;
+  peep: Peep | undefined;
+  more: number;
+  onAnswer: (a: Answer) => void;
+}) {
+  const { kind, target } = approvalKind(approval.tool, approval.input);
+  const name = peep?.name ?? approval.peepId;
+  return (
+    <motion.div
+      {...panelIn}
+      role="alertdialog"
+      aria-label={s.approval.asks(name)}
+      className="no-drag absolute top-[60px] left-1/2 z-30 flex w-[min(460px,calc(100%-420px))] -translate-x-1/2 flex-col gap-3 rounded-[24px] bg-card p-5"
+    >
+      <div className="flex items-center gap-3">
+        <span
+          className="grid size-9 shrink-0 place-items-center rounded-full text-[14px] font-semibold text-white"
+          style={{ background: peep?.color ?? "var(--accent)" }}
+        >
+          {name[0]}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-[15px] font-semibold tracking-[-0.01em]">{s.approval.asks(name)}</div>
+          <div className="text-[13px] text-muted">{s.approval.kind[kind]}</div>
+        </div>
+        {more > 0 && <span className="text-[12px] text-wait">{s.approval.more(more)}</span>}
+      </div>
+      {target && (
+        <code className="selectable max-h-32 overflow-auto rounded-tile bg-fill-1 px-3.5 py-3 font-mono text-[12.5px] leading-relaxed break-all whitespace-pre-wrap">
+          {target}
+        </code>
+      )}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button variant="ghost" onClick={() => onAnswer("always")} title={s.approval.alwaysHint(allowRule(approval.tool, approval.input))}>
+          {s.approval.always(name)}
+        </Button>
+        <Button onClick={() => onAnswer("deny")}>{s.approval.deny}</Button>
+        <Button variant="primary" onClick={() => onAnswer("allow")}>
+          {s.approval.allow}
+        </Button>
       </div>
     </motion.div>
   );
@@ -285,7 +411,7 @@ function Inspector({ s, peep, onClose, onModel, onStop }: { s: Strings; peep: Pe
           <h2 className="text-[17px] leading-tight font-semibold tracking-[-0.01em]">{peep.name}</h2>
           <div className="text-[13px] text-muted capitalize">{peep.title}</div>
         </div>
-        <Button variant="ghost" onClick={onClose} aria-label="Close" className="w-8 px-0">
+        <Button variant="ghost" onClick={onClose} aria-label="Close" className="w-8 px-0!">
           <X size={16} />
         </Button>
       </div>

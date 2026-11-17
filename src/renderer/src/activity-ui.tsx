@@ -1,4 +1,4 @@
-import { BookOpen, Brain, Coffee, Cog, Keyboard, type LucideIcon, Search, Sofa, TriangleAlert, Users } from "lucide-react";
+import { BookOpen, Brain, Coffee, Cog, Hand, Keyboard, type LucideIcon, Search, Sofa, TriangleAlert, Users } from "lucide-react";
 import type { Activity } from "../../core/activity";
 import { cx } from "./ui";
 
@@ -11,13 +11,14 @@ export const ACTIVITY_ICON: Record<Activity, LucideIcon> = {
   researching: Search,
   running: Cog,
   delegating: Users,
+  waiting: Hand,
   stuck: TriangleAlert,
 };
 
-export const isWorking = (a: Activity) => !["idle", "queued", "stuck"].includes(a);
+export const isWorking = (a: Activity) => !["idle", "queued", "waiting", "stuck"].includes(a);
 
 export const activityColor = (a: Activity) =>
-  a === "stuck" ? "var(--stuck)" : a === "queued" ? "var(--wait)" : isWorking(a) ? "var(--accent)" : "var(--muted)";
+  a === "stuck" ? "var(--stuck)" : a === "queued" || a === "waiting" ? "var(--wait)" : isWorking(a) ? "var(--accent)" : "var(--muted)";
 
 export function ActivityIcon({ activity, size = 13 }: { activity: Activity; size?: number }) {
   const Icon = ACTIVITY_ICON[activity];

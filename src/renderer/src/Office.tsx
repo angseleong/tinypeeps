@@ -41,7 +41,7 @@ function FpsProbe() {
 function Ticker({ peeps, busy }: { peeps: Peep[]; busy: boolean }) {
   const invalidate = useThree((st) => st.invalidate);
   const until = useRef(0);
-  const working = peeps.some((p) => isWorking(p.activity) || p.dropAt);
+  const working = peeps.some((p) => isWorking(p.activity) || p.activity === "waiting" || p.dropAt);
   // What can make a Peep move: where it should be. A new array with the same contents isn't a change.
   const where = peeps.map((p) => `${p.id}:${p.activity}:${p.dropAt ?? ""}:${p.color}`).join("|");
   useEffect(() => {
@@ -159,8 +159,13 @@ type PeepProps = {
   setDragging: (id: string | null) => void;
 };
 
+// Waiting for an Approval: the Peep queues in front of the CEO's desk. Its lounge spot is unique, so
+// it doubles as a place in that line.
+const CEO_DESK_FRONT: Vec2 = [-3.6, -4.6];
+
 function homeOf(p: Peep): Vec2 {
   if (p.dropAt) return p.dropAt;
+  if (p.activity === "waiting") return [CEO_DESK_FRONT[0] + (p.lounge[0] + 6) * 0.35, CEO_DESK_FRONT[1] + (p.lounge[1] - 4.5) * 0.5];
   return p.activity === "idle" || p.activity === "queued" ? p.lounge : p.desk;
 }
 
@@ -221,7 +226,7 @@ function PeepMesh({ s, reduced, peep, selected, onSelect, onDrop, setDragging }:
       if (peep.activity !== "idle" && peep.activity !== "queued" && !peep.dropAt) g.rotation.y = Math.PI; // face the desk
     }
     const a = peep.activity;
-    b.rotation.z = a === "stuck" ? Math.sin(t * 30) * 0.06 : a === "reading" ? Math.sin(t * 1.5) * 0.06 : 0;
+    b.rotation.z = a === "stuck" ? Math.sin(t * 30) * 0.06 : a === "reading" ? Math.sin(t * 1.5) * 0.06 : a === "waiting" ? Math.sin(t * 5) * 0.05 : 0;
     b.rotation.x = a === "typing" ? 0.12 + Math.sin(t * 25) * 0.025 : a === "thinking" ? Math.sin(t * 2) * 0.04 : 0;
     b.position.y = a === "running" ? Math.abs(Math.sin(t * 8)) * 0.12 : 0;
   });

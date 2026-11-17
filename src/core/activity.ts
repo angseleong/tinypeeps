@@ -1,7 +1,7 @@
 // Turns Claude Code's `stream-json` lines into what a Peep is shown doing.
 // Pure code: no model is ever asked what it's doing (ADR 2).
 
-export type Activity = "idle" | "queued" | "thinking" | "typing" | "reading" | "researching" | "running" | "delegating" | "stuck";
+export type Activity = "idle" | "queued" | "thinking" | "typing" | "reading" | "researching" | "running" | "delegating" | "waiting" | "stuck";
 
 const TOOL_ACTIVITY: Record<string, Activity> = {
   Edit: "typing",
@@ -38,6 +38,8 @@ export type PeepUpdate = {
   usage?: Usage;
   models?: Record<string, ModelUsage>;
   rateLimit?: RateLimit;
+  // Claude Code asks before using a tool; the CEO answers it as an Approval (ADR 5).
+  approval?: { requestId: string; tool: string; input: Record<string, unknown> };
   done?: boolean;
   error?: string;
 };
@@ -70,6 +72,16 @@ export function readStreamLine(line: string): PeepUpdate | null {
   const blocks: Block[] = msg?.message?.content ?? [];
 
   switch (msg?.type) {
+    case "control_request": {
+      const r = msg.request;
+      if (r?.subtype !== "can_use_tool" || typeof msg.request_id !== "string") return null;
+      const tool = String(r.tool_name ?? "tool");
+      return {
+        activity: "waiting",
+        label: describeTool({ type: "tool_use", name: tool, input: r.input }),
+        approval: { requestId: msg.request_id, tool, input: r.input ?? {} },
+      };
+    }
     case "system":
       return msg.subtype === "init"
         ? { activity: "thinking", label: "init", model: msg.model, sessionId: msg.session_id, claudeVersion: msg.claude_code_version }

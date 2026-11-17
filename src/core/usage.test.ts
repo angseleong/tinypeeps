@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultRoles, parseRole, serializeRole } from "./roles";
-import { byDay, byFamily, savingPercent, totals, type UsageRecord, usageFromTranscript } from "./usage";
+import { byDay, byFamily, savingPercent, totals, turnUsage, type UsageRecord, usageFromTranscript } from "./usage";
 
 const rec = (ts: number, model: string, input: number, output: number): UsageRecord => ({
   ts,
@@ -50,5 +50,16 @@ describe("role files", () => {
   it("falls back to safe defaults for a hand-edited file", () => {
     const r = parseRole("x", "---\nmodel: gpt\n---\nHi");
     expect(r).toMatchObject({ model: "sonnet", tools: ["Read", "Grep", "Glob"], everything: false, brief: "Hi" });
+  });
+});
+
+describe("turnUsage", () => {
+  it("keeps only what the latest turn added to the session's running sum", () => {
+    const a = { input: 3, output: 42, cacheRead: 0, cacheWrite: 100, costUSD: 0.0107 };
+    const b = { input: 6, output: 71, cacheRead: 5234, cacheWrite: 100, costUSD: 0.0115 };
+    const d = turnUsage({ haiku: b }, { haiku: a }).haiku;
+    expect([d.input, d.output, d.cacheRead, d.cacheWrite]).toEqual([3, 29, 5234, 0]);
+    expect(turnUsage({ haiku: a }, {})).toEqual({ haiku: a });
+    expect(turnUsage({ haiku: a }, { haiku: a })).toEqual({});
   });
 });

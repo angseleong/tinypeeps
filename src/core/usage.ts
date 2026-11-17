@@ -33,6 +33,26 @@ export function totals(records: UsageRecord[]): Totals {
   return t;
 }
 
+// Claude Code reports `modelUsage` summed over the whole session, so a session that stays open for a
+// conversation records only what each turn added (checked with Claude Code 2.1.292).
+export function turnUsage(now: Record<string, ModelUsage>, before: Record<string, ModelUsage>): Record<string, ModelUsage> {
+  const out: Record<string, ModelUsage> = {};
+  for (const [m, u] of Object.entries(now)) {
+    const b = before[m];
+    const d = b
+      ? {
+          input: u.input - b.input,
+          output: u.output - b.output,
+          cacheRead: u.cacheRead - b.cacheRead,
+          cacheWrite: u.cacheWrite - b.cacheWrite,
+          costUSD: u.costUSD - b.costUSD,
+        }
+      : u;
+    if (d.input || d.output || d.cacheRead || d.cacheWrite) out[m] = d;
+  }
+  return out;
+}
+
 export function savingPercent(t: Totals): number {
   return t.baseline > 0 ? Math.max(0, ((t.baseline - t.cost) / t.baseline) * 100) : 0;
 }

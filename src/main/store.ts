@@ -1,10 +1,12 @@
 // Files the app keeps: settings in Electron's data folder, and per Office under `.tinypeeps/`.
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { app } from "electron";
-import { defaultRoles, parseRole, type Role, serializeRole } from "../core/roles";
+import type { Meeting } from "../core/meeting";
+import { defaultRoles, parseRole, placeHire, type Role, serializeRole } from "../core/roles";
 import { type ContextCosts, type Limits, readSettings, type Settings } from "../core/settings";
+import { type SkillRef, skillDescription, skillsSection } from "../core/skills";
 import type { Lang } from "../core/strings";
 import type { UsageRecord } from "../core/usage";
 
@@ -36,7 +38,12 @@ export function loadRoles(office: string, lang: Lang): Role[] {
     mkdirSync(dir, { recursive: true });
     for (const r of defaultRoles(lang)) writeFileSync(join(dir, `${r.id}.md`), serializeRole(r));
   }
+  return readRoleDir(dir);
+}
+
+function readRoleDir(dir: string): Role[] {
   const roles: Role[] = [];
+  if (!existsSync(dir)) return roles;
   for (const f of readdirSync(dir)
     .filter((f) => f.endsWith(".md"))
     .sort()) {
@@ -49,6 +56,29 @@ export function loadRoles(office: string, lang: Lang): Role[] {
   return roles;
 }
 
+// The open meeting's chat, so a restart doesn't lose the Kickoff. Ending the meeting removes it.
+export const loadMeeting = (office: string): Meeting | null => readJson<Meeting | null>(tiny(office, "meeting.json"), null);
+export function saveMeeting(office: string, m: Meeting | null) {
+  mkdirSync(tiny(office), { recursive: true });
+  if (m) writeFileSync(tiny(office, "meeting.json"), JSON.stringify(m, null, 1));
+  else rmSync(tiny(office, "meeting.json"), { force: true });
+}
+
+// The Manager's Hiring Plan: draft Role files it wrote into `.tinypeeps/hiring/` (ADR 8).
+export const loadHiring = (office: string): Role[] => readRoleDir(tiny(office, "hiring"));
+
+// The CEO approved the (edited) Hiring Plan: each hire gets a seat and a Role file, and the drafts go.
+export function approveHiring(office: string, hires: Role[], lang: Lang): Role[] {
+  const team = loadRoles(office, lang);
+  for (const h of hires) {
+    const r = placeHire(h, team, lang);
+    saveRole(office, r);
+    team.push(r);
+  }
+  rmSync(tiny(office, "hiring"), { recursive: true, force: true });
+  return loadRoles(office, lang);
+}
+
 export function saveRole(office: string, role: Role) {
   if (!/^[a-z0-9-]+$/.test(role.id)) throw new Error("bad role id");
   writeFileSync(tiny(office, "roles", `${role.id}.md`), serializeRole(role));
@@ -57,8 +87,69 @@ export function saveRole(office: string, role: Role) {
 export function writeBrief(office: string, role: Role): string {
   mkdirSync(tiny(office, "run"), { recursive: true });
   const path = tiny(office, "run", `${role.id}.md`);
-  writeFileSync(path, role.brief);
+  writeFileSync(path, role.brief + skillsSection(roleSkills(office, role)));
   return path;
+}
+
+// A Skill the Role names but nobody has installed is left out of the brief, not invented.
+function roleSkills(office: string, role: Role): SkillRef[] {
+  return role.skills.flatMap((entry) => {
+    const name = skillName(entry);
+    if (!ensureSkill(office, name)) return [];
+    const path = join(".tinypeeps", "skills", name, "SKILL.md");
+    return [{ name, path, description: skillDescription(readFileSync(join(office, path), "utf8")) }];
+  });
+}
+
+// "owner/repo@remotion" and "remotion" name the same Skill.
+const skillName = (entry: string) => entry.split("@").at(-1)?.split("/").at(-1) ?? entry;
+
+// Skills reach a lean Peep as files inside its Office (ADR 9), so the first time a Role needs one it
+// is copied in from where it already is on this computer: the app's own `skills/`, the Office's
+// `.claude/skills` or `.agents/skills` (where `npx skills add` puts them), the CEO's own skills, or an
+// installed plugin. Nothing is downloaded here; installing from the internet is a Bash Approval.
+export function ensureSkill(office: string, name: string): boolean {
+  if (!/^[\w.-]+$/.test(name)) return false;
+  const dest = tiny(office, "skills", name);
+  if (existsSync(join(dest, "SKILL.md"))) return true;
+  const from = findSkill(office, name);
+  if (!from) return false;
+  cpSync(from, dest, { recursive: true, dereference: true });
+  return true;
+}
+
+export const skillMissing = (office: string, entries: string[]) => entries.filter((e) => !ensureSkill(office, skillName(e)));
+
+function findSkill(office: string, name: string): string | null {
+  const home = homedir();
+  const direct = [
+    join(app.getAppPath(), "skills", name),
+    join(office, ".claude", "skills", name),
+    join(office, ".agents", "skills", name),
+    join(home, ".claude", "skills", name),
+    join(home, ".agents", "skills", name),
+  ].find((d) => existsSync(join(d, "SKILL.md")));
+  if (direct) return direct;
+  return pluginSkills().get(name) ?? null;
+}
+
+// Plugins keep skills a few folders deep, one folder per version. Listed once per run (the cache can
+// hold thousands of files); sorted, so a newer version replaces an older one.
+let pluginIndex: Map<string, string> | null = null;
+function pluginSkills(): Map<string, string> {
+  if (pluginIndex) return pluginIndex;
+  pluginIndex = new Map();
+  const cache = join(homedir(), ".claude", "plugins", "cache");
+  try {
+    const files = readdirSync(cache, { recursive: true, encoding: "utf8" }).filter(
+      (p) => p.endsWith("/SKILL.md") && p.includes("/skills/") && !p.includes("node_modules"),
+    );
+    for (const f of files.sort()) {
+      const dir = join(cache, f, "..");
+      pluginIndex.set(dir.split("/").at(-1) ?? "", dir);
+    }
+  } catch {}
+  return pluginIndex;
 }
 
 export function loadUsage(office: string): UsageRecord[] {

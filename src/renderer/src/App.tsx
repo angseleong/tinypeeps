@@ -1,13 +1,16 @@
-import { Activity as ActivityIcon, Building2, ChartColumn, ListChecks, Settings as SettingsIcon, Users } from "lucide-react";
+import { Activity as ActivityIcon, Building2, ChartColumn, Check, FolderPlus, ListChecks, Settings as SettingsIcon, Users } from "lucide-react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import type { Activity, PeepUpdate } from "../../core/activity";
-import type { Role } from "../../core/roles";
+import type { Approval } from "../../core/approval";
+import type { Meeting } from "../../core/meeting";
+import { MANAGER_ID, type Role } from "../../core/roles";
 import { DEFAULT_SETTINGS, type Limits, type Settings } from "../../core/settings";
 import { labelText, STRINGS, type Strings } from "../../core/strings";
 import { freshTokens, type UsageRecord } from "../../core/usage";
 import { isWorking } from "./activity-ui";
 import { type IslandState, MorphIsland, RubberDock } from "./chrome";
+import { HiringSheet, MeetingPanel } from "./meeting";
 import { freshRuntime, type Peep, type Runtime } from "./office-data";
 import { ActivityPage } from "./pages/ActivityPage";
 import { DashboardPage } from "./pages/Dashboard";
@@ -46,6 +49,20 @@ export function App() {
   const [runtime, setRuntime] = useState<Record<string, Runtime>>({});
   const [usage, setUsage] = useState<UsageRecord[]>([]);
   const [limits, setLimits] = useState<Limits>(null);
+  const [approvals, setApprovals] = useState<Approval[]>([]);
+  const [paused, setPaused] = useState(false);
+  const [meeting, setMeeting] = useState<Meeting | null>(null);
+  const [hires, setHires] = useState<Role[]>([]);
+  const [hiringOpen, setHiringOpen] = useState(false);
+  const [officeMenu, setOfficeMenu] = useState(false);
+  const meetingRef = useRef(meeting);
+  meetingRef.current = meeting;
+  // Whether the Manager's conversation session is still open. A new one remembers nothing, so it is
+  // sent what was said before.
+  const live = useRef(false);
+  const pausedForMeeting = useRef(false);
+  // Which Office the meeting state belongs to, so switching never saves one Office's chat in another.
+  const meetingOf = useRef<string | null>(null);
   const [page, setPage] = useState<Page>("office");
   const [sim, setSim] = useState(false);
   const [notice, setNotice] = useState("");
@@ -56,6 +73,8 @@ export function App() {
   const dark = useTheme(settings.theme);
   const s = STRINGS[settings.language];
   const office = settings.current;
+  const officeRef = useRef(office);
+  officeRef.current = office;
 
   const peeps: Peep[] = roles.map((r) => ({ ...r, ...(runtime[r.id] ?? freshRuntime()) }));
   const peepsRef = useRef(peeps);
@@ -89,6 +108,12 @@ export function App() {
       dropAt: u.done ? null : p.dropAt,
       tokens: p.tokens + tokens,
     }));
+    if (id === MANAGER_ID && u.done) {
+      if (u.error) live.current = false;
+      const said = u.text;
+      if (said && !u.error && meetingRef.current) setMeeting((m) => m && { ...m, chat: [...m.chat, { from: "manager", text: said, t: Date.now() }] });
+      if (officeRef.current) window.tiny.hiring(officeRef.current).then(setHires);
+    }
     const peep = peepsRef.current.find((x) => x.id === id);
     if (!peep) return;
     if (u.done) {
@@ -105,7 +130,16 @@ export function App() {
   useEffect(() => {
     window.tiny.getSettings().then(setSettings);
     window.tiny.claudeConfig(null).then((c) => setLimits(c.limits));
-    const offs = [window.tiny.onUpdate(apply), window.tiny.onSettings(setSettings), window.tiny.onLimits(setLimits), window.tiny.onUsage(setUsage)];
+    window.tiny.approvals().then(setApprovals);
+    const offs = [
+      window.tiny.onUpdate(apply),
+      window.tiny.onSettings(setSettings),
+      window.tiny.onLimits(setLimits),
+      window.tiny.onUsage(setUsage),
+      window.tiny.onApprovals(setApprovals),
+      // "Always allow" saved a rule into a Role file.
+      window.tiny.onRoles((o, r) => o === officeRef.current && setRoles(r)),
+    ];
     return () => {
       for (const off of offs) off();
     };
@@ -113,12 +147,23 @@ export function App() {
 
   useEffect(() => {
     if (!office) return;
-    window.tiny.officeData(office).then((d) => {
+    live.current = false;
+    meetingOf.current = null;
+    Promise.all([window.tiny.officeData(office), window.tiny.loadMeeting(office)]).then(([d, saved]) => {
       setRoles(d.roles);
       setUsage(d.usage);
       setRuntime({});
+      // A meeting left open comes back; an Office with only its Manager opens on the Kickoff (ADR 8).
+      const alone = d.roles.length === 1 && d.roles[0].id === MANAGER_ID;
+      setMeeting(saved ?? (alone ? { chat: [], attendees: [d.roles[0].name], kickoff: true } : null));
+      meetingOf.current = office;
     });
+    window.tiny.hiring(office).then(setHires);
   }, [office]);
+
+  useEffect(() => {
+    if (office && meetingOf.current === office) window.tiny.saveMeeting(office, meeting?.chat.length ? meeting : null);
+  }, [meeting, office]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: flash only sets state; the notice text is the trigger
   useEffect(() => {
@@ -159,7 +204,50 @@ export function App() {
     };
   }, [sim]);
 
+  // The CEO's line to the Manager: shown as `shown`, sent as `prompt`.
+  const talk = async (shown: string | null, prompt: string) => {
+    if (!office) return setNotice(s.office.needFolder);
+    const m = meetingRef.current ?? { chat: [], attendees: [peepsRef.current.find((x) => x.id === MANAGER_ID)?.name ?? ""], kickoff: false };
+    const earlier = m.chat.map((l) => `${l.from === "ceo" ? "CEO" : "Manager"}: ${l.text}`).join("\n\n");
+    const sent = live.current || !earlier ? prompt : `${s.meeting.history}\n\n${earlier}\n\n---\n\n${prompt}`;
+    setMeeting({ ...m, chat: shown ? [...m.chat, { from: "ceo", text: shown, t: Date.now() }] : m.chat });
+    const r = await window.tiny.say({ office, peepId: MANAGER_ID, prompt: sent });
+    live.current = r === "sent" || r === "started";
+    if (r === "busy") setNotice(s.office.busy(peepsRef.current.find((x) => x.id === MANAGER_ID)?.name ?? ""));
+  };
+
+  const meetingNow = async () => {
+    setPaused(await window.tiny.pause(true));
+    pausedForMeeting.current = true;
+    const ps = peepsRef.current;
+    setMeeting({ chat: meetingRef.current?.chat ?? [], attendees: ps.map((x) => x.name), kickoff: false });
+    const team = ps
+      .filter((x) => x.id !== MANAGER_ID)
+      .map((x) => s.meeting.status(x.name, x.title, x.activity, x.lastText.slice(0, 400).replace(/\s+/g, " ")))
+      .join("\n");
+    talk(null, `${s.meeting.nowPrompt}\n\n${team}`);
+  };
+
+  const endMeeting = async () => {
+    window.tiny.endMeeting(MANAGER_ID);
+    live.current = false;
+    setMeeting(null);
+    if (pausedForMeeting.current) {
+      pausedForMeeting.current = false;
+      setPaused(await window.tiny.pause(false));
+    }
+  };
+
+  const approveHiring = async (team: Role[]) => {
+    if (!office) return;
+    setRoles(await window.tiny.approveHiring(office, team));
+    setHires([]);
+    setHiringOpen(false);
+    setNotice(s.hiring.hired(team.length));
+  };
+
   const run = async (peepId: string, prompt: string) => {
+    if (peepId === MANAGER_ID) return talk(prompt, prompt); // the Command Bar's line to the Manager is a conversation
     const p = peepsRef.current.find((x) => x.id === peepId);
     if (!p) return;
     if (!office) return setNotice(s.office.needFolder);
@@ -178,8 +266,11 @@ export function App() {
 
   const working = peeps.filter((p) => isWorking(p.activity)).length;
   const island: IslandState = moment ?? { kind: "idle", title: folderName(office), detail: s.island.idle(working) };
+  // The island shows the Office's name; when nothing is happening, clicking it opens the Office
+  // switcher right below it. A moment instead opens the Peep it's about.
   const onIsland = () => {
-    if (moment && moment.kind !== "idle" && moment.kind !== "notice") {
+    if (!moment) return setOfficeMenu((v) => !v);
+    if (moment.kind !== "idle" && moment.kind !== "notice") {
       const p = peeps.find((x) => x.name === moment.name);
       if (p) setSelectedId(p.id);
     }
@@ -208,6 +299,11 @@ export function App() {
             peeps={peeps}
             usage={usage}
             settings={settings}
+            approvals={approvals}
+            paused={paused}
+            setPaused={async (on) => setPaused(await window.tiny.pause(on))}
+            meetingOpen={!!meeting}
+            onMeetingNow={meetingNow}
             sim={sim}
             setSim={setSim}
             run={run}
@@ -218,6 +314,49 @@ export function App() {
             setSelectedId={setSelectedId}
           />
         </div>
+        {page === "office" && (
+          <>
+            <AnimatePresence>
+              {meeting && (
+                <MeetingPanel
+                  s={s}
+                  meeting={meeting}
+                  manager={roles.find((r) => r.id === MANAGER_ID)}
+                  team={roles}
+                  thinking={!!runtime[MANAGER_ID] && !["idle", "stuck"].includes(runtime[MANAGER_ID].activity)}
+                  onSay={(t) => talk(t, t)}
+                  onClose={endMeeting}
+                />
+              )}
+            </AnimatePresence>
+            {hires.length > 0 && !hiringOpen && (
+              <motion.button
+                type="button"
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0, transition: springs.soft }}
+                onClick={() => setHiringOpen(true)}
+                className="no-drag absolute top-[60px] left-1/2 z-30 -translate-x-1/2 rounded-full bg-inverse px-4 py-2 text-[13px] font-medium text-on-inverse"
+              >
+                {s.hiring.ready(hires.length)}
+              </motion.button>
+            )}
+            <AnimatePresence>
+              {hiringOpen && office && (
+                <HiringSheet
+                  s={s}
+                  office={office}
+                  hires={hires}
+                  onApprove={approveHiring}
+                  onChanges={(t) => {
+                    setHiringOpen(false);
+                    talk(t, s.hiring.changesPrompt(t));
+                  }}
+                  onClose={() => setHiringOpen(false)}
+                />
+              )}
+            </AnimatePresence>
+          </>
+        )}
         <AnimatePresence initial={false}>
           {page !== "office" && (
             <motion.div
@@ -247,6 +386,52 @@ export function App() {
 
         <div className="drag absolute inset-x-0 top-0 h-[52px]" />
         <MorphIsland state={island} onClick={onIsland} />
+        <AnimatePresence>
+          {officeMenu && (
+            <>
+              <button type="button" aria-label="Close" className="no-drag absolute inset-0 z-40 cursor-default" onClick={() => setOfficeMenu(false)} />
+              <motion.div
+                initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1, transition: springs.soft }}
+                exit={{ opacity: 0, y: -4, transition: exitFast }}
+                onKeyDown={(e) => e.key === "Escape" && setOfficeMenu(false)}
+                className="no-drag absolute top-[52px] left-1/2 z-50 flex w-[320px] -translate-x-1/2 flex-col gap-0.5 rounded-panel bg-card p-1.5"
+                role="menu"
+              >
+                {settings.offices.map((o) => (
+                  <button
+                    key={o}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      window.tiny.setSettings({ current: o });
+                      setOfficeMenu(false);
+                    }}
+                    className="flex items-center gap-3 rounded-row px-3 py-2 text-left hover:bg-fill-1"
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[13.5px] font-medium">{folderName(o)}</span>
+                      <span className="block truncate text-[11.5px] text-muted">{o}</span>
+                    </span>
+                    {o === office && <Check size={15} aria-hidden />}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  role="menuitem"
+                  title={s.office.newOfficeHint}
+                  onClick={() => {
+                    setOfficeMenu(false);
+                    window.tiny.pickOffice();
+                  }}
+                  className="flex items-center gap-3 rounded-row px-3 py-2.5 text-left text-[13.5px] font-medium hover:bg-fill-1"
+                >
+                  <FolderPlus size={15} aria-hidden /> {s.office.newOffice}
+                </button>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
         <RubberDock items={nav} active={page} onChange={setPage} />
       </div>
     </MotionConfig>

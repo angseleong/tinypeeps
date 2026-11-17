@@ -2,6 +2,9 @@
 import { parse, stringify } from "yaml";
 
 export type Model = "opus" | "sonnet" | "haiku";
+
+// The Manager's Role id: "bos" from the prototype, kept so Offices made then still find it.
+export const MANAGER_ID = "bos";
 export const MODELS: Model[] = ["opus", "sonnet", "haiku"];
 
 // Tools a Role may be given. Everything else Claude Code has stays off for that Peep.
@@ -15,6 +18,10 @@ export type Role = {
   escalate_to?: Model;
   tools: string[];
   mcp: string[];
+  // Skills on top of the Base Skills, read as files from `.tinypeeps/skills/<name>/SKILL.md` (ADR 9).
+  skills: string[];
+  // `--allowedTools` rules the CEO added with "Always allow for this Role" (ADR 5).
+  allow: string[];
   // Load everything the CEO installed in Claude Code (plugins, skills, hooks, CLAUDE.md). Costly.
   // Without it a session runs in --safe-mode, where Claude Code loads no plugin skills at all.
   everything: boolean;
@@ -22,6 +29,8 @@ export type Role = {
   color: string;
   desk: [number, number];
   lounge: [number, number];
+  // One line from the Manager's Hiring Plan: why this Role, its model and its Skills.
+  why?: string;
   brief: string;
 };
 
@@ -40,11 +49,14 @@ export function parseRole(id: string, text: string): Role {
     escalate_to: MODELS.includes(f.escalate_to as Model) ? f.escalate_to : undefined,
     tools: Array.isArray(f.tools) ? f.tools.map(String) : ["Read", "Grep", "Glob"],
     mcp: Array.isArray(f.mcp) ? f.mcp.map(String) : [],
+    skills: Array.isArray(f.skills) ? f.skills.map(String) : [],
+    allow: Array.isArray(f.allow) ? f.allow.map(String) : [],
     everything: f.everything === true,
     room: String(f.room ?? "desks"),
     color: String(f.color ?? "#5b7fa6"),
     desk: pair(f.desk, [0, 0]),
     lounge: pair(f.lounge, [-6, 4]),
+    why: typeof f.why === "string" ? f.why : undefined,
     brief: m[2].trim(),
   };
 }
@@ -67,56 +79,72 @@ const HANDOFF: Record<Lang, string> = {
   id: "Kerjakan di folder saat ini saja. Jawab singkat dalam Bahasa Indonesia. Akhiri dengan catatan serah terima maks 150 kata: apa yang kamu lakukan, di mana hasilnya, apa yang tersisa.",
 };
 
-const JOBS: Record<string, Record<Lang, [string, string]>> = {
-  bos: {
-    en: ["manager", "You split the CEO's goals into tasks and review the team's work. Don't do small tasks yourself."],
-    id: ["manajer", "Kamu memecah tujuan CEO jadi tugas dan me-review hasil kerja tim. Jangan mengerjakan tugas kecil sendiri."],
-  },
-  designer: {
-    en: ["designer", "You make designs: SVG, HTML/CSS and visual assets."],
-    id: ["designer", "Kamu membuat desain: SVG, HTML/CSS, dan aset visual."],
-  },
-  periset: {
-    en: ["researcher", "You find facts, sources and examples, and write them up clearly."],
-    id: ["periset", "Kamu mencari fakta, sumber, dan contoh, lalu menuliskannya rapi."],
-  },
-  penulis: { en: ["writer", "You write: scripts, articles, copy, READMEs."], id: ["penulis", "Kamu menulis teks: skrip, artikel, copy, README."] },
-};
+// The Manager's brief: Kickoff, Brief, Hiring Plan and review (ADR 8). Written in English for the
+// model either way; the language line tells it what to answer in.
+const MANAGER_BRIEF = `You are the Manager of this company. You work for the CEO: you plan and review, and you don't do the team's work yourself.
 
+**Kickoff.** If \`docs/brief.md\` doesn't exist yet, this is the Kickoff. Use the grilling Skill: ask the CEO one question at a time, each with your recommended answer, until the Goal, who it's for, what the first version does and what waits are clear. Keep every reply short.
+
+**Brief.** When the CEO agrees it's clear, write the starting docs with the brief Skill.
+
+**Hiring Plan.** Then propose the team, 2 to 5 Roles, for any kind of company (software, video, a shop…). For each Role write \`.tinypeeps/hiring/<id>.md\` (id: lowercase letters and dashes):
+
+---
+name: <a short first name>
+title: <job title>
+model: haiku | sonnet | opus
+escalate_to: sonnet | opus
+tools: [only what the job needs, from Read, Grep, Glob, Edit, Write, WebSearch, WebFetch, Bash]
+skills: [skill names]
+why: <one line: why this Role, this model and these Skills>
+---
+<the Role's brief, under 200 words>
+
+Pick the cheapest model that does the job well: haiku to search and summarise, sonnet for most making, opus only for hard work. Find each Role's Skills with the find-skills Skill and install them into this folder with \`npx skills add <owner/repo@skill> -y\` (no \`-g\`); the CEO approves each install. Then tell the CEO the Hiring Plan is ready. The CEO edits and approves it in the app: never write to \`.tinypeeps/roles/\` yourself.
+
+**Review.** When asked to review someone's work, use the review Skill.`;
+
+// Every Office starts with the Manager alone (ADR 8); the team comes from the Hiring Plan.
 export function defaultRoles(lang: Lang): Role[] {
-  const role = (
-    id: string,
-    name: string,
-    model: Model,
-    escalate_to: Model | undefined,
-    color: string,
-    room: string,
-    desk: [number, number],
-    lounge: [number, number],
-    tools: string[],
-  ): Role => {
-    const [title, job] = JOBS[id][lang];
-    const intro = lang === "en" ? `You are the ${title} at a small company called TinyPeeps.` : `Kamu ${title} di kantor kecil "TinyPeeps".`;
-    return {
-      id,
-      title,
-      name,
-      model,
-      escalate_to,
-      tools,
-      mcp: [],
-      everything: false,
-      room,
-      color,
-      desk,
-      lounge,
-      brief: `${intro} ${job} ${HANDOFF[lang]}`,
-    };
-  };
   return [
-    role("bos", "Bos", "opus", undefined, "#c96f4a", "ceo", [-6, -5], [-7.8, 3.8], ["Read", "Grep", "Glob", "Write"]),
-    role("designer", "Dina", "sonnet", "opus", "#5b7fa6", "desks", [-2, -1], [-6.2, 3.8], ["Read", "Grep", "Glob", "Edit", "Write"]),
-    role("periset", "Raka", "haiku", "sonnet", "#5f8f6b", "library", [2, -1], [-4.6, 3.8], ["Read", "Grep", "Glob", "Write", "WebSearch", "WebFetch"]),
-    role("penulis", "Sari", "sonnet", "opus", "#b58a3c", "desks", [0, 2], [-4.6, 5.6], ["Read", "Grep", "Glob", "Edit", "Write"]),
+    {
+      id: MANAGER_ID,
+      title: lang === "en" ? "manager" : "manajer",
+      name: lang === "en" ? "Manager" : "Manajer",
+      model: "opus",
+      escalate_to: undefined,
+      tools: ["Read", "Grep", "Glob", "Edit", "Write", "WebSearch", "WebFetch", "Bash"],
+      mcp: [],
+      skills: ["grilling", "domain-modeling", "research", "brief", "find-skills", "review"],
+      allow: [],
+      everything: false,
+      room: "ceo",
+      color: "#c96f4a",
+      desk: [-6, -5],
+      lounge: [-7.8, 3.8],
+      brief: `${MANAGER_BRIEF}\n\n${lang === "en" ? "Work only in the current folder. Answer in English." : "Kerjakan di folder saat ini saja. Jawab dalam Bahasa Indonesia."}`,
+    },
   ];
+}
+
+// Where hired Peeps sit and rest, and their colours, in hiring order.
+const SLOTS: { desk: [number, number]; lounge: [number, number]; color: string }[] = [
+  { desk: [-2, -1], lounge: [-6.2, 3.8], color: "#5b7fa6" },
+  { desk: [2, -1], lounge: [-4.6, 3.8], color: "#5f8f6b" },
+  { desk: [0, 2], lounge: [-4.6, 5.6], color: "#b58a3c" },
+  { desk: [-2, 2], lounge: [-6.2, 5.6], color: "#8a6bb5" },
+  { desk: [2, 2], lounge: [-7.8, 5.6], color: "#b5566b" },
+  { desk: [0, -1], lounge: [-3.0, 4.7], color: "#4f9a9a" },
+];
+
+// The colours hires get, in hiring order; the Hiring Plan's cards preview them.
+export const HIRE_COLORS = SLOTS.map((x) => x.color);
+
+// A hire keeps what the Manager and the CEO chose, gets a free seat, and always ends its Tasks with a
+// Handoff Note, whatever its brief says.
+export function placeHire(r: Role, taken: Role[], lang: Lang): Role {
+  const used = new Set(taken.map((t) => `${t.desk}`));
+  const slot = SLOTS.find((x) => !used.has(`${x.desk}`)) ?? SLOTS[taken.length % SLOTS.length];
+  const brief = r.brief.includes("150") ? r.brief : `${r.brief}\n\n${HANDOFF[lang]}`;
+  return { ...r, room: r.room === "ceo" ? "desks" : r.room, desk: slot.desk, lounge: slot.lounge, color: slot.color, brief };
 }

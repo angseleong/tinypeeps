@@ -90,7 +90,7 @@ export function SettingsPage({ s, settings }: { s: Strings; settings: Settings }
               )}
               <Button
                 variant="ghost"
-                className="w-8 px-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                className="w-8 px-0! opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                 aria-label={s.settings.remove}
                 onClick={() => set({ offices: settings.offices.filter((x) => x !== o), current: settings.current === o ? null : settings.current })}
               >
