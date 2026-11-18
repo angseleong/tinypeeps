@@ -13,8 +13,9 @@ without using any brand's characters, logos or assets.
 
 **How it's made:** `MeshToonMaterial` with a three-band gradient, one shared material per colour
 (`src/app/office/look.ts`); KayKit pieces keep their texture but get the same toon shading. An
-orthographic camera at the isometric angle turns ±20° and zooms 0.9x to 2.6x towards the cursor, with
-no panning. Shadows come from one directional light whose shadow map is drawn once, when the furniture
+orthographic camera at the isometric angle turns ±20° and zooms 0.75x to 2.6x towards the cursor; a
+right-drag pans. Where it looks is held inside the office, the more tightly the further out it is, so
+zoomed all the way out the whole office is in view, centred. Shadows come from one directional light whose shadow map is drawn once, when the furniture
 has loaded (drei `BakeShadows`); Peeps cast none and get a soft blob instead. drei's
 `AccumulativeShadows` was tried first and baked nothing with three 0.187. The glTF loader runs without
 Draco or meshopt decoders: their WebAssembly breaks the window's strict CSP.

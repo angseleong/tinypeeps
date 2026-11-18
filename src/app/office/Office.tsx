@@ -158,28 +158,41 @@ export function Office({ s, active, dark, reduced, peeps, selectedId, onSelect, 
 }
 
 // Isometric, with a little turn and zoom (docs/office.md#look). Zoom starts where the whole office fits
-// the window, and zooms towards the cursor, so there's no panning to get lost in.
+// the window and zooms towards the cursor; a right-drag pans. Where the camera looks is held inside the
+// office, less the closer it is to fitting: zoomed all the way out, the whole office is always in view.
 const VIEW: Vec2 = [38, 25]; // the office's size on screen at zoom 1, walls included
 function IsoControls({ enabled }: { enabled: boolean }) {
   const size = useThree((st) => st.size);
   const camera = useThree((st) => st.camera) as OrthographicCamera;
   const controls = useThree((st) => st.controls) as Controls | null;
+  const fit = Math.min(size.width / VIEW[0], size.height / VIEW[1]);
   useEffect(() => {
-    const fit = Math.min(size.width / VIEW[0], size.height / VIEW[1]);
     camera.zoom = fit;
     camera.updateProjectionMatrix();
     if (controls) {
-      controls.minZoom = fit * 0.9;
+      controls.minZoom = fit * 0.75; // out far enough to see the corners the HUD covers
       controls.maxZoom = fit * 2.6;
+      controls.target.set(0, 0, 0);
+      controls.update();
     }
-  }, [size.width, size.height, camera, controls]);
+  }, [fit, camera, controls]);
+  const hold = () => {
+    if (!controls) return;
+    const k = Math.max(0, 1 - fit / camera.zoom);
+    const t = controls.target;
+    const x = Math.max((-k * OFFICE_SIZE[0]) / 2, Math.min((k * OFFICE_SIZE[0]) / 2, t.x));
+    const z = Math.max((-k * OFFICE_SIZE[1]) / 2, Math.min((k * OFFICE_SIZE[1]) / 2, t.z));
+    if (x === t.x && z === t.z && t.y === 0) return;
+    camera.position.add(tmpShift.set(x - t.x, -t.y, z - t.z)); // move with it, so the angle stays
+    t.set(x, 0, z);
+  };
   const iso = Math.PI / 4;
   return (
     <OrbitControls
       makeDefault
       enabled={enabled}
-      enablePan={false}
       zoomToCursor
+      onChange={hold}
       minAzimuthAngle={iso - 0.35}
       maxAzimuthAngle={iso + 0.35}
       minPolarAngle={0.8}
@@ -187,6 +200,7 @@ function IsoControls({ enabled }: { enabled: boolean }) {
     />
   );
 }
+const tmpShift = new Vector3();
 
 type PeepProps = {
   s: Strings;
