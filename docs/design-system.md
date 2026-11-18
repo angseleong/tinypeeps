@@ -84,7 +84,7 @@ Model colours, used the same everywhere (badges, charts): Opus `accent`, Sonnet 
 ## Motion
 
 Named springs ("stiffness damping", mass 1), copied from Motion Studies' `tokens.css` into
-`springs` in `src/renderer/src/ui.tsx`:
+`springs` in `src/app/ui.tsx`:
 
 | Spring | Values | Used for |
 |---|---|---|

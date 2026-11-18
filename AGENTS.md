@@ -3,29 +3,27 @@
 TinyPeeps is a planned Electron + TypeScript desktop app that runs Claude Code sessions as Peeps in a
 3D office. Human docs: `README.md`; what to build: `docs/prd.md`; setup and rules: `CONTRIBUTING.md`.
 
-**A rough prototype exists** (README, "Try the prototype"): `src/core/activity.ts` (stream-json to
-Activity, tested), `src/main` (Electron main, runs `claude -p` per Peep), `src/preload`, and
-`src/renderer` (React + React Three Fiber office). It's built to be looked at and changed fast, not to
-last. The layout below is where it's heading, from
-`docs/adr/0001-electron-app-over-claude-code-sessions.md`; don't describe the parts not built as working.
+**A working prototype exists** (README, "Try the prototype"), in the layout below, from
+`docs/adr/0001-electron-app-over-claude-code-sessions.md`. `TODO.md` says what works and what doesn't;
+don't describe the parts not built as working.
 
 Commands: `npm run dev` (the app), `npm test`, `npm run typecheck`.
 
 - `src/core`: pure code shared by both sides (models, the Activity map, savings math, the bridge
   contract, template parsing, `strings/` for every word on screen in Indonesian and English).
-- `src/engine`: Node only. Starts and stops Claude Code sessions, receives hook events, reads
-  transcripts and rate limits, keeps the Task board and Handoff Notes.
-- `src/desktop`: Electron main and preload (windows, IPC, the local hook receiver).
+- `src/engine`: Node only. Starts and stops Claude Code sessions, reads their `stream-json`,
+  transcripts and rate limits, keeps the Task board, Handoff Notes and the Company Note.
+- `src/desktop`: Electron main and preload (windows, IPC, notifications, the quit question).
 - `src/app`: the window, React + Tailwind; only reads what the engine publishes.
 - `src/app/office`: the 3D office, React Three Fiber; it draws Activities, it never decides them.
 - `templates/`: Template format examples (v1 ships no Templates: every Office starts with the Manager,
   [ADR 8](docs/adr/0008-every-office-starts-with-the-manager.md)).
 - `skills/`: the Skills the Manager ships with (`brief`, `review`), [ADR 9](docs/adr/0009-skills-per-role-with-base-skills.md).
-- `test/`: tests against a pretend Claude Code (`test/pretend`) fed by recorded, scrubbed hook events.
+- `test/`: tests against a pretend Claude Code (`test/pretend`) fed by recorded, scrubbed `stream-json`.
 - `spikes/`: throwaway code that answers one question. The app never imports it.
 
 The repository is public: never commit real
-transcripts, prompts, tokens or file paths from anyone's sessions (`docs/test-data.md` once it exists).
+transcripts, prompts, tokens or file paths from anyone's sessions (`docs/test-data.md`).
 What to build next: `TODO.md` (packages 0, A, B, C, D; tick an item only when it works in the real window). Background: `CONTEXT.md` (words), `docs/adr/` (decisions), `docs/architecture.md` (how it fits),
 `docs/token-savings.md` (how cost is counted), `docs/privacy.md` (promises to the CEO).
 

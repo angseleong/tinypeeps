@@ -67,5 +67,26 @@ Matt Pocock skills alone pass the 10% line, which is why they moved to the Manag
 - So a Skill costs about what Claude Code's own skills cost (the description every turn, the body only
   when used) without giving up lean sessions. `src/core/skills.ts` builds the list; a Skill a Role names
   that isn't in the Office yet is left out of the brief.
-- Still open: measuring the Base Skills' rules in a real session, and checking review verdicts stay
-  as good with them.
+- Measured below.
+
+## What the Base Skills cost (2026-11-18, Claude Code 2.1.292)
+
+Each plugin's rules read by running its own `SessionStart` hook (with a throwaway HOME, so its flag
+files never touch the CEO's `~/.claude`), then added with `--append-system-prompt-file` to a lean Haiku
+session with Read, Grep and Glob. Context tokens on the first turn:
+
+| Session | Tokens | Added |
+|---|---|---|
+| Lean Role, nothing added | 6,562 | – |
+| + caveman 3.0.0 rules | 8,045 | +1,483 (+22.6%) |
+| + ponytail 5.3.2 rules | 7,450 | +888 (+13.5%) |
+| + both | 8,925 | +2,363 (+36%) |
+
+Both are over the 10% rule, so **both ship off.** The CEO sees each one's measured cost in Settings and
+can turn it on for every Peep; the Team page then shows what it adds. The Matt Pocock skills stay on the
+Manager only, as files listed in its brief (their descriptions, not their bodies, go every turn).
+
+**Reviews stay as good with them.** The same Opus review of a made-up `intro.md` that broke its
+"done when" (five lines instead of three, a typo, a placeholder link), once with the Manager's brief
+alone and once with caveman and ponytail added: both said **Changes** and listed the same four fixes;
+the second was terser and also named what it couldn't check. One pair, so a sign, not proof.

@@ -24,3 +24,18 @@ animate characters that look busy whatever the agent does, which breaks the trus
   README" unless the tool or file says so. Roles can rename Activities ("Editing video") to make up for
   it, without any model call.
 - Adding a hook costs a small script run per event on the CEO's machine, not tokens.
+
+## What the `hook-listener` spike found (2026-11-18, Claude Code 2.1.292)
+
+- **Hooks never run in a lean session.** With `--safe-mode`, hooks passed through `--settings` don't
+  fire either, and `--include-hook-events` adds nothing. Without `--safe-mode`
+  (`--setting-sources ""` + `--settings`) every event fired, but the same one-tool Haiku session
+  started at 8.2k context tokens instead of about 6.5k, since the CEO's CLAUDE.md and skills come back.
+- **`stream-json` already carries what the office needs:** tool calls and their results (with
+  `is_error`), subagents (`system` `task_started`, the subagent's own messages with a
+  `parent_tool_use_id`, and the `tool_result` of its `Agent` call when it's done), permission
+  questions (`can_use_tool`), and the end (`result`).
+- **So Activities come from `stream-json` only.** No hooks, no local socket, nothing extra running
+  on the CEO's computer. Revisit only if Claude Code lets a `--safe-mode` session keep `--settings`
+  hooks.
+
