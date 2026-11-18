@@ -3,11 +3,13 @@ import { Canvas, type ThreeEvent, useFrame, useThree } from "@react-three/fiber"
 import { Suspense, useEffect, useRef, useState } from "react";
 import { type Group, type Mesh, type OrthographicCamera, Plane, Vector3 } from "three";
 import type { OrbitControls as Controls } from "three/examples/jsm/controls/OrbitControls.js";
+import { MANAGER_ID } from "../../core/roles";
 import type { Strings } from "../../core/strings";
-import { ActivityPill, isWorking } from "../activity-ui";
+import { ActivityPill, activityLabel, isWorking } from "../activity-ui";
 import { BakedShadows, Furniture } from "./Furniture";
 import { PAL, toon } from "./look";
 import { deskFacing, OFFICE_SIZE, type Peep, ROOMS, type RoomId, type Vec2 } from "./office-data";
+import { LOOKS, MANAGER_LOOK, type Motion, Person } from "./Person";
 import { findPath } from "./paths";
 
 type Props = {
@@ -40,12 +42,15 @@ function FpsProbe() {
   return null;
 }
 
+// A Peep on its way keeps the office drawing (see Ticker) until shortly after it stops.
+const walking = { until: 0 };
+
 // Draws only while something moves, at most 60 times a second: after any change (Peeps walk for a few
 // seconds), while a Peep works or is carried. A still office draws nothing. The camera redraws itself.
 function Ticker({ peeps, busy }: { peeps: Peep[]; busy: boolean }) {
   const invalidate = useThree((st) => st.invalidate);
   const until = useRef(0);
-  const working = peeps.some((p) => isWorking(p.activity) || p.activity === "waiting" || p.dropAt);
+  const working = peeps.some((p) => isWorking(p.activity) || p.activity === "waiting" || p.activity === "stuck" || p.dropAt);
   // What can make a Peep move: where it should be. A new array with the same contents isn't a change.
   const where = peeps.map((p) => `${p.id}:${p.activity}:${p.dropAt ?? ""}:${p.color}`).join("|");
   useEffect(() => {
@@ -55,10 +60,11 @@ function Ticker({ peeps, busy }: { peeps: Peep[]; busy: boolean }) {
   }, [where, invalidate]);
   useEffect(() => {
     let raf = 0;
-    let last = 0;
+    let next = 0;
     const tick = (now: number) => {
-      if ((busy || working || now < until.current) && now - last >= 15.5) {
-        last = now;
+      // A 60 fps beat, not "15.5 ms since the last frame": on a 144 Hz screen that gave every third refresh (48 fps).
+      if ((busy || working || now < until.current || now < walking.until) && now >= next - 2) {
+        next = (now - next > 50 ? now : next) + 1000 / 60;
         invalidate();
       }
       raf = requestAnimationFrame(tick);
@@ -133,8 +139,19 @@ export function Office({ s, active, dark, reduced, peeps, selectedId, onSelect, 
         <Furniture dark={dark} />
         <BakedShadows />
       </Suspense>
-      {peeps.map((p) => (
-        <PeepMesh key={p.id} s={s} reduced={reduced} peep={p} selected={p.id === selectedId} onSelect={onSelect} onDrop={onDrop} setDragging={setDragging} />
+      {peeps.map((p, i) => (
+        <PeepMesh
+          key={p.id}
+          s={s}
+          reduced={reduced}
+          peep={p}
+          // shortcut: a look by place in the list, so it can change when the team changes; the Avatar editor (package C) stores one per Role
+          look={p.id === MANAGER_ID ? MANAGER_LOOK : LOOKS[i % LOOKS.length]}
+          selected={p.id === selectedId}
+          onSelect={onSelect}
+          onDrop={onDrop}
+          setDragging={setDragging}
+        />
       ))}
     </Canvas>
   );
@@ -175,6 +192,7 @@ type PeepProps = {
   s: Strings;
   reduced: boolean;
   peep: Peep;
+  look: string;
   selected: boolean;
   onSelect: (id: string) => void;
   onDrop: (id: string, at: Vec2) => void;
@@ -210,15 +228,15 @@ function poseScale(pose: Pose, now: number): [number, number] {
   return [1 + (1 - y) * 0.6, y];
 }
 
-function PeepMesh({ s, reduced, peep, selected, onSelect, onDrop, setDragging }: PeepProps) {
+function PeepMesh({ s, reduced, peep, look, selected, onSelect, onDrop, setDragging }: PeepProps) {
   const group = useRef<Group>(null);
   const body = useRef<Group>(null);
   const blob = useRef<Mesh>(null);
   const carry = useRef<{ start: Vector3; at: Vector3; moved: boolean } | null>(null);
   const pose = useRef<Pose>(null);
+  const motion = useRef<Motion["current"]>("pose");
   // The way to where the Peep should be, found again whenever that place changes or it's put down.
   const route = useRef<{ to: string; points: Vec2[] }>({ to: "", points: [] });
-  const invalidate = useThree((st) => st.invalidate);
   const [mood, setMood] = useState<"" | "!?" | "?">("");
   const [start] = useState(() => homeOf(peep)); // set once: after that useFrame walks the Peep
   // Reused every frame, so walking makes no garbage.
@@ -236,6 +254,7 @@ function PeepMesh({ s, reduced, peep, selected, onSelect, onDrop, setDragging }:
 
     const c = carry.current;
     if (c) {
+      motion.current = c.moved ? "fall" : "pose";
       g.position.lerp(tmp.lifted.set(c.at.x, c.moved ? 1.4 : 0, c.at.z), 0.35);
       b.rotation.z = reduced || !c.moved ? 0 : Math.sin(t * 14) * 0.22; // dangling
       b.rotation.x = reduced || !c.moved ? 0 : Math.sin(t * 11) * 0.12;
@@ -252,20 +271,17 @@ function PeepMesh({ s, reduced, peep, selected, onSelect, onDrop, setDragging }:
     if (dist > 0.05) {
       tmp.dir.copy(tmp.target).sub(g.position).normalize();
       g.position.addScaledVector(tmp.dir, Math.min(dist, dt * 3.2));
-      g.position.y = reduced ? 0 : Math.abs(Math.sin(t * 12)) * 0.1;
+      motion.current = "walk";
       g.rotation.y = Math.atan2(tmp.dir.x, tmp.dir.z);
-      invalidate(); // a long walk outlasts the Ticker's few seconds: keep drawing until it arrives
+      walking.until = performance.now() + 200; // a long walk outlasts the Ticker's few seconds
     } else {
-      g.position.y = 0;
+      motion.current = "pose";
       const a = peep.activity;
       if (a === "waiting")
         g.rotation.y = Math.PI; // facing the CEO's desk
       else if (a !== "idle" && a !== "queued" && !peep.dropAt) g.rotation.y = deskFacing(peep.desk); // face the desk
     }
-    const a = peep.activity;
-    b.rotation.z = a === "stuck" ? Math.sin(t * 30) * 0.06 : a === "reading" ? Math.sin(t * 1.5) * 0.06 : a === "waiting" ? Math.sin(t * 5) * 0.05 : 0;
-    b.rotation.x = a === "typing" ? 0.12 + Math.sin(t * 25) * 0.025 : a === "thinking" ? Math.sin(t * 2) * 0.04 : 0;
-    b.position.y = a === "running" ? Math.abs(Math.sin(t * 8)) * 0.12 : 0;
+    b.rotation.set(0, 0, 0);
   });
 
   const ray = (e: ThreeEvent<PointerEvent>) => e.ray.intersectPlane(FLOOR, tmp.hit)?.clone() ?? null;
@@ -313,56 +329,89 @@ function PeepMesh({ s, reduced, peep, selected, onSelect, onDrop, setDragging }:
     <group ref={group} position={[start[0], 0, start[1]]} onPointerDown={down} onPointerMove={move} onPointerUp={up}>
       <PoseClock pose={pose} />
       <group ref={body}>
-        <mesh position={[0, 0.65, 0]} material={toon(peep.color)}>
-          <capsuleGeometry args={[0.32, 0.5, 4, 12]} />
-        </mesh>
-        <mesh position={[0, 1.35, 0]} material={toon(PAL.skin)}>
-          <sphereGeometry args={[0.3, 16, 12]} />
-        </mesh>
-        {[-0.1, 0.1].map((x) => (
-          <mesh key={x} position={[x, 1.38, 0.27]}>
-            <sphereGeometry args={[0.04, 6, 6]} />
-            <meshBasicMaterial color="#222" />
-          </mesh>
-        ))}
+        <Suspense fallback={null}>
+          <Person look={look} activity={peep.activity} motion={motion} reduced={reduced} />
+        </Suspense>
       </group>
       <mesh ref={blob} rotation-x={-Math.PI / 2}>
         <circleGeometry args={[0.38, 24]} />
         <meshBasicMaterial color="#3a2a1e" transparent opacity={0.18} depthWrite={false} />
       </mesh>
-      {peep.activity === "delegating" && <Helper color={peep.color} reduced={reduced} />}
+      {peep.activity === "delegating" && <Helper look={look} reduced={reduced} />}
+      {peep.activity === "thinking" && <ThoughtBubble reduced={reduced} />}
+      {peep.activity === "stuck" && <Alarm reduced={reduced} />}
+      {/* the Peep's own colour on the floor, as in the HUD; terracotta around it when selected */}
+      <mesh position={[0, 0.015, 0]} rotation-x={-Math.PI / 2}>
+        <ringGeometry args={[0.4, 0.46, 40]} />
+        <meshBasicMaterial color={peep.color} />
+      </mesh>
       {selected && (
         <mesh position={[0, 0.02, 0]} rotation-x={-Math.PI / 2}>
-          <ringGeometry args={[0.45, 0.52, 40]} />
+          <ringGeometry args={[0.48, 0.55, 40]} />
           <meshBasicMaterial color={PAL.terracotta} />
         </mesh>
       )}
-      <Html position={[0, 2.05, 0]} center zIndexRange={[6, 0]} className="peep-label" pointerEvents="none">
+      <Html position={[0, 1.85, 0]} center zIndexRange={[6, 0]} className="peep-label" pointerEvents="none">
         {mood ? <div className="mood">{mood}</div> : null}
         <span className="font-semibold">{peep.name}</span>
-        <ActivityPill activity={peep.activity} label={s.activity[peep.activity]} className="text-[10px] text-muted" />
+        <ActivityPill activity={peep.activity} label={activityLabel(s, peep)} className="text-[10px] text-muted" />
       </Html>
     </group>
   );
 }
 
-// A subagent at work: a small helper pops up beside the Peep and goes when its result is back.
-function Helper({ color, reduced }: { color: string; reduced: boolean }) {
+// A subagent at work: a small helper, in the Peep's own look, pops up beside it and runs on the spot
+// until its result is back.
+const WALKING: Motion = { current: "walk" };
+function Helper({ look, reduced }: { look: string; reduced: boolean }) {
   const g = useRef<Group>(null);
-  useFrame(({ clock }, dt) => {
+  useFrame((_, dt) => {
     const h = g.current;
-    if (!h) return;
-    const k = Math.min(1, h.scale.x + dt * 4);
-    h.scale.setScalar(reduced ? 1 : k);
-    h.position.y = reduced ? 0 : Math.abs(Math.sin(clock.elapsedTime * 9)) * 0.08;
+    if (h) h.scale.setScalar(reduced ? 0.45 : Math.min(0.45, h.scale.x + dt * 2));
   });
   return (
-    <group ref={g} position={[0.75, 0, 0.35]} scale={reduced ? 1 : 0.01}>
-      <mesh position={[0, 0.35, 0]} material={toon(color)}>
-        <capsuleGeometry args={[0.16, 0.25, 4, 10]} />
+    <group ref={g} position={[0.75, 0, 0.35]} scale={reduced ? 0.45 : 0.01}>
+      <Suspense fallback={null}>
+        <Person look={look} activity="delegating" motion={WALKING} reduced={reduced} />
+      </Suspense>
+    </group>
+  );
+}
+
+// Thinking: three cream puffs rising beside the head, the last one big.
+function ThoughtBubble({ reduced }: { reduced: boolean }) {
+  const g = useRef<Group>(null);
+  useFrame(({ clock }) => {
+    if (g.current && !reduced) g.current.position.y = 1.35 + Math.sin(clock.elapsedTime * 2) * 0.04;
+  });
+  return (
+    <group ref={g} position={[0.35, 1.35, 0]}>
+      {[
+        [0, 0, 0.05],
+        [0.12, 0.14, 0.08],
+        [0.28, 0.34, 0.17],
+      ].map(([x, y, r]) => (
+        <mesh key={r} position={[x, y, 0]} material={toon(PAL.cream)}>
+          <sphereGeometry args={[r, 12, 10]} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+// Stuck: a red "!" over its head, bobbing.
+function Alarm({ reduced }: { reduced: boolean }) {
+  const g = useRef<Group>(null);
+  useFrame(({ clock }) => {
+    if (g.current && !reduced) g.current.position.y = 1.55 + Math.abs(Math.sin(clock.elapsedTime * 6)) * 0.08;
+  });
+  return (
+    <group ref={g} position={[0, 1.55, 0]}>
+      <mesh position={[0, 0.2, 0]} material={toon("#d0453a")}>
+        <boxGeometry args={[0.09, 0.26, 0.09]} />
       </mesh>
-      <mesh position={[0, 0.72, 0]} material={toon(PAL.skin)}>
-        <sphereGeometry args={[0.15, 12, 10]} />
+      <mesh position={[0, 0, 0]} material={toon("#d0453a")}>
+        <boxGeometry args={[0.09, 0.09, 0.09]} />
       </mesh>
     </group>
   );

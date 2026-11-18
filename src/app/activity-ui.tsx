@@ -1,5 +1,7 @@
 import { BookOpen, Brain, Coffee, Cog, Hand, Keyboard, type LucideIcon, Search, Sofa, TriangleAlert, Users } from "lucide-react";
 import type { Activity } from "../core/activity";
+import type { Role } from "../core/roles";
+import type { Strings } from "../core/strings";
 import { cx } from "./ui";
 
 export const ACTIVITY_ICON: Record<Activity, LucideIcon> = {
@@ -14,6 +16,9 @@ export const ACTIVITY_ICON: Record<Activity, LucideIcon> = {
   waiting: Hand,
   stuck: TriangleAlert,
 };
+
+// A Role can rename an Activity for its job ("Editing video" instead of "Typing"), docs/office.md#activities.
+export const activityLabel = (s: Strings, p: Pick<Role, "labels"> & { activity: Activity }) => p.labels?.[p.activity] ?? s.activity[p.activity];
 
 export const isWorking = (a: Activity) => !["idle", "queued", "waiting", "stuck"].includes(a);
 

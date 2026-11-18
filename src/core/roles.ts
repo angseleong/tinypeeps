@@ -1,5 +1,6 @@
 // Role files: `.tinypeeps/roles/<id>.md`, YAML front matter plus the brief (docs/templates.md).
 import { parse, stringify } from "yaml";
+import type { Activity } from "./activity";
 
 export type Model = "opus" | "sonnet" | "haiku";
 
@@ -29,6 +30,8 @@ export type Role = {
   everything: boolean;
   room: string;
   color: string;
+  // Activity names for this job, shown instead of the usual ones: `labels: { typing: Editing video }`.
+  labels?: Partial<Record<Activity, string>>;
   desk: [number, number];
   lounge: [number, number];
   // One line from the Manager's Hiring Plan: why this Role, its model and its Skills.
@@ -56,10 +59,17 @@ export function parseRole(id: string, text: string): Role {
     everything: f.everything === true,
     room: String(f.room ?? "desks"),
     color: String(f.color ?? "#5b7fa6"),
+    labels: labelsOf(f.labels),
     ...moveOldSeat(id, pair(f.desk, SLOTS[0].desk), pair(f.lounge, SLOTS[0].lounge)),
     why: typeof f.why === "string" ? f.why : undefined,
     brief: m[2].trim(),
   };
+}
+
+function labelsOf(v: unknown): Role["labels"] {
+  if (!v || typeof v !== "object") return undefined;
+  const out = Object.fromEntries(Object.entries(v).filter(([, t]) => typeof t === "string" && t.trim()));
+  return Object.keys(out).length ? out : undefined;
 }
 
 function pair(v: unknown, fallback: [number, number]): [number, number] {
