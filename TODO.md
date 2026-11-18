@@ -96,15 +96,13 @@ The CEO gives a Goal and only approves. [ADR 4](docs/adr/0004-memory-is-files-th
 **Where B stands** (2026-11-18). Clicked through in the real window with Claude Code 2.1.292 on a
 made-up Office (a bakery's Instagram video): Kickoff with Opus, Hiring Plan, a Goal planned into two
 Tasks, Approvals, reviews, one Escalation that passed and one that went to the CEO, Compaction, Stop
-all, Meeting now and quitting with a Peep at work. Every open item starts with `Check` (built and
-tested; tick it once the named part has been seen in the window) and says what's left. The last three
-were seen on 2026-11-18 with a scripted pretend Claude Code (a subagent, an Approval, two failed tools,
-version 2.1.998), 0 tokens.
+all, Meeting now and quitting with a Peep at work. B is done: the last items were seen on 2026-11-18
+with a scripted pretend Claude Code (a subagent, an Approval, two failed tools, version 2.1.998, the
+notification banner), 0 tokens.
 
 | Status | How many | Items |
 | ------ | -------- | ----- |
-| Done | 21 | all but the one below |
-| `Check` | 1 | Approval pile: the system notification |
+| Done | 22 | all |
 
 - [x] **Spike `hook-listener`:** hooks never run in a lean `--safe-mode` session, not even from
       `--settings`; `stream-json` already carries tool calls, results, subagents, permission questions
@@ -125,11 +123,12 @@ version 2.1.998), 0 tokens.
       allow this for this Role" (saved into the Role file, and it also answers the same question already
       waiting); a read outside the Office folder shows its path; never `bypassPermissions`. The card sits
       above the Meeting Room panel
-- [ ] `Check` **Approval pile:** several stack oldest first, HUD count, system notification when the window is
-      hidden. Seen: four waiting, oldest on top, "+3 more waiting", HUD count; with the window hidden the
-      app does send the notification, but macOS refuses it for the dev build (`UNErrorDomain error 1`:
-      Electron isn't allowed to notify). Left to see: the banner, after allowing Electron in System
-      Settings → Notifications, or in the signed build from D
+- [x] **Approval pile:** several stack oldest first, HUD count, system notification when the window is
+      hidden. Seen: four waiting, oldest on top, "+3 more waiting", HUD count, and the banner with the
+      window in the background (2026-11-18, pretend Claude Code). The dev build only gets the banner after
+      re-signing its bundle (`xattr -cr` + `codesign --force --deep --sign -` on
+      `node_modules/electron/dist/Electron.app`): as installed it is linker-signed only, so macOS refuses
+      with `UNErrorDomain error 1` and never lists Electron in Notifications. `npm ci` undoes it
 - [x] **Spike `skills-per-peep`:** a lean session loads no `.claude/skills/`; Skills as files listed in
       the brief work ([ADR 9](docs/adr/0009-skills-per-role-with-base-skills.md#what-the-spike-found-2026-11-17-claude-code-21292));
       Role files have `skills:`
@@ -196,9 +195,13 @@ version 2.1.998), 0 tokens.
 
 From capsules to a warm low-poly office. [office.md](docs/office.md)
 
-- [ ] **Spike `office-fps`:** 6 animated Peeps at 60 fps on an M1 MacBook Air
-- [ ] **Art:** KayKit Adventurers + Character Animations + Furniture Bits (or Quaternius), licences
-      checked on each pack's page, listed in `assets/CREDITS.md`
+- [x] **Spike `office-fps`:** 6 animated Peeps at 60 fps on an M1 MacBook Air. Yes: 238 fps uncapped
+      (144 at this monitor's vsync), glTF skinned meshes and `useAnimations` are fine
+      ([office.md](docs/office.md#spike-office-fps-rigged-gltf-characters-are-fine)). Run in a plain Electron
+      window (`spikes/office-fps/`), not the app's own window: not measured on the Air's own screen or on battery
+- [x] **Art:** KayKit Adventurers + Character Animations + Furniture Bits (or Quaternius), licences
+      checked on each pack's page, listed in `assets/CREDITS.md`. Needs sitting, waving, working clips
+      (in the pack) but no typing clip exists: see office.md
 - [ ] **Look:** matte toon material, cream/terracotta/sage palette, baked soft shadows, isometric
       camera with a little rotate and zoom
 - [ ] **Layout `studio-small`** ([office.md](docs/office.md#rooms-in-v1)): CEO Office, Manager's
