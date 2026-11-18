@@ -40,6 +40,10 @@ export type PeepUpdate = {
   rateLimit?: RateLimit;
   // Claude Code asks before using a tool; the CEO answers it as an Approval (ADR 5).
   approval?: { requestId: string; tool: string; input: Record<string, unknown> };
+  // A file the Peep wrote or edited, listed on its Task.
+  file?: string;
+  // A tool call came back; `track` decides what the Peep shows next.
+  toolResult?: "ok" | "error";
   done?: boolean;
   error?: string;
 };
@@ -93,13 +97,20 @@ export function readStreamLine(line: string): PeepUpdate | null {
     }
     case "assistant": {
       const tool = blocks.find((b) => b.type === "tool_use");
-      if (tool) return { activity: activityForTool(tool.name ?? ""), label: describeTool(tool) };
+      // A subagent's own work: the Peep stays Delegating while its helper works.
+      if (msg.parent_tool_use_id) return tool ? { activity: "delegating", label: describeTool(tool) } : null;
+      if (tool) {
+        const file = activityForTool(tool.name ?? "") === "typing" ? (tool.input?.file_path ?? tool.input?.notebook_path) : undefined;
+        return { activity: activityForTool(tool.name ?? ""), label: describeTool(tool), ...(typeof file === "string" && { file }) };
+      }
       const text = blocks.find((b) => b.type === "text");
       return text?.text ? { activity: "thinking", text: text.text } : null;
     }
     case "user": {
-      const failed = blocks.some((b) => b.type === "tool_result" && b.is_error);
-      return failed ? { activity: "stuck", label: "tool-failed" } : { activity: "thinking" };
+      if (msg.parent_tool_use_id) return null;
+      const results = blocks.filter((b) => b.type === "tool_result");
+      if (!results.length) return null;
+      return { toolResult: results.some((b) => b.is_error) ? "error" : "ok" };
     }
     case "result": {
       const u = msg.usage ?? {};
@@ -130,4 +141,22 @@ export function readStreamLine(line: string): PeepUpdate | null {
     default:
       return null;
   }
+}
+
+// After a tool result the Peep keeps its Activity for a moment, then shows Thinking if no new tool
+// started; one failed tool is normal, two in a row is Stuck (docs/office.md#activities).
+export const THINK_AFTER_MS = 3000;
+export type Tracker = { failStreak: number };
+
+export function track(t: Tracker, u: PeepUpdate): { send: PeepUpdate | null; thinkLater: boolean } {
+  if (u.toolResult === "ok") {
+    t.failStreak = 0;
+    return { send: null, thinkLater: true };
+  }
+  if (u.toolResult === "error") {
+    t.failStreak += 1;
+    if (t.failStreak >= 2) return { send: { activity: "stuck", label: "tool-failed" }, thinkLater: false };
+    return { send: { label: "tool-failed" }, thinkLater: true };
+  }
+  return { send: u, thinkLater: false };
 }

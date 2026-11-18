@@ -3,7 +3,7 @@
 export type Approval = { id: string; peepId: string; tool: string; input: Record<string, unknown>; at: number };
 export type Answer = "allow" | "deny" | "always";
 
-export type ApprovalKind = "command" | "edit" | "web" | "search" | "mcp" | "other";
+export type ApprovalKind = "command" | "edit" | "read" | "web" | "search" | "mcp" | "other";
 
 const str = (v: unknown) => (typeof v === "string" ? v : "");
 
@@ -11,6 +11,8 @@ const str = (v: unknown) => (typeof v === "string" ? v : "");
 export function approvalKind(tool: string, input: Record<string, unknown>): { kind: ApprovalKind; target: string } {
   if (tool === "Bash") return { kind: "command", target: str(input.command) };
   if (["Edit", "Write", "NotebookEdit", "MultiEdit"].includes(tool)) return { kind: "edit", target: str(input.file_path ?? input.notebook_path) };
+  // Claude Code asks before reading only outside the Office folder, so the path is what matters.
+  if (["Read", "Grep", "Glob"].includes(tool)) return { kind: "read", target: str(input.file_path ?? input.path ?? input.pattern) };
   if (tool === "WebFetch") return { kind: "web", target: str(input.url) };
   if (tool === "WebSearch") return { kind: "search", target: str(input.query) };
   if (tool.startsWith("mcp__")) {

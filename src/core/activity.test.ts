@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { activityForTool, readStreamLine } from "./activity";
+import { activityForTool, readStreamLine, track } from "./activity";
 
 const line = (o: unknown) => JSON.stringify(o);
 
 describe("readStreamLine", () => {
   it("maps tool calls to activities", () => {
     const edit = readStreamLine(line({ type: "assistant", message: { content: [{ type: "tool_use", name: "Edit", input: { file_path: "/a/b/logo.svg" } }] } }));
-    expect(edit).toEqual({ activity: "typing", label: "Edit: logo.svg" });
+    expect(edit).toEqual({ activity: "typing", label: "Edit: logo.svg", file: "/a/b/logo.svg" });
     expect(
       readStreamLine(line({ type: "assistant", message: { content: [{ type: "tool_use", name: "WebSearch", input: { query: "sejarah majapahit" } }] } }))
         ?.activity,
@@ -17,8 +17,26 @@ describe("readStreamLine", () => {
     expect(activityForTool("mcp__youtube__upload")).toBe("running");
   });
 
-  it("marks a failed tool as stuck", () => {
-    expect(readStreamLine(line({ type: "user", message: { content: [{ type: "tool_result", is_error: true }] } }))?.activity).toBe("stuck");
+  it("is Stuck only after two failed tools in a row", () => {
+    const fail = readStreamLine(line({ type: "user", message: { content: [{ type: "tool_result", is_error: true }] } }));
+    const ok = readStreamLine(line({ type: "user", message: { content: [{ type: "tool_result" }] } }));
+    expect(fail).toEqual({ toolResult: "error" });
+    const t = { failStreak: 0 };
+    expect(track(t, fail ?? {})).toEqual({ send: { label: "tool-failed" }, thinkLater: true });
+    expect(track(t, fail ?? {}).send?.activity).toBe("stuck");
+    expect(track(t, ok ?? {})).toEqual({ send: null, thinkLater: true });
+    expect(track(t, fail ?? {}).send?.activity).toBeUndefined();
+  });
+
+  it("keeps a Peep Delegating while its subagent works", () => {
+    const inner = {
+      type: "assistant",
+      parent_tool_use_id: "toolu_1",
+      message: { content: [{ type: "tool_use", name: "Read", input: { file_path: "/a.txt" } }] },
+    };
+    expect(readStreamLine(line(inner))).toEqual({ activity: "delegating", label: "Read: a.txt" });
+    expect(readStreamLine(line({ type: "user", parent_tool_use_id: "toolu_1", message: { content: [{ type: "tool_result" }] } }))).toBeNull();
+    expect(readStreamLine(line({ type: "assistant", message: { content: [{ type: "tool_use", name: "Agent", input: {} }] } }))?.activity).toBe("delegating");
   });
 
   it("reads usage and ends the task on result", () => {

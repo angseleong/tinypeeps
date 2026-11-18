@@ -9,6 +9,8 @@ export type UsageRecord = {
   sessionId?: string;
   models: Record<string, ModelUsage>;
   recovered?: boolean; // read back from a transcript after a crash
+  taskId?: string;
+  escalation?: boolean; // the second run of a Task, on the stronger model (ADR 6)
 };
 
 export type Family = "opus" | "sonnet" | "haiku" | "fable" | "other";
@@ -65,6 +67,18 @@ export function byKey(records: UsageRecord[], key: (r: UsageRecord, modelId: str
       out[k] ??= zero();
       add(out[k], m, u);
     }
+  return out;
+}
+
+// Escalated Tasks per Peep, each Task once however many turns its second run took (ADR 6).
+export function escalationsByPeep(records: UsageRecord[]): Record<string, number> {
+  const seen = new Set<string>();
+  const out: Record<string, number> = {};
+  for (const r of records) {
+    if (!r.escalation || !r.taskId || seen.has(r.taskId)) continue;
+    seen.add(r.taskId);
+    out[r.peepId] = (out[r.peepId] ?? 0) + 1;
+  }
   return out;
 }
 

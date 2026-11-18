@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultRoles, parseRole, serializeRole } from "./roles";
-import { byDay, byFamily, savingPercent, totals, turnUsage, type UsageRecord, usageFromTranscript } from "./usage";
+import { byDay, byFamily, escalationsByPeep, savingPercent, totals, turnUsage, type UsageRecord, usageFromTranscript } from "./usage";
 
 const rec = (ts: number, model: string, input: number, output: number): UsageRecord => ({
   ts,
@@ -61,5 +61,9 @@ describe("turnUsage", () => {
     expect([d.input, d.output, d.cacheRead, d.cacheWrite]).toEqual([3, 29, 5234, 0]);
     expect(turnUsage({ haiku: a }, {})).toEqual({ haiku: a });
     expect(turnUsage({ haiku: a }, { haiku: a })).toEqual({});
+  });
+  it("counts each escalated Task once, per Peep", () => {
+    const r = (taskId: string, escalation?: boolean) => ({ ts: 0, peepId: "dina", taskId, escalation, models: {} });
+    expect(escalationsByPeep([r("a", true), r("a", true), r("b"), r("c", true)])).toEqual({ dina: 2 });
   });
 });

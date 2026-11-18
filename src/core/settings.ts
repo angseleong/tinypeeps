@@ -11,6 +11,10 @@ export type Settings = {
   concurrency: number;
   bossAutonomy: boolean;
   claudePath: string;
+  // The untested Claude Code version the CEO was already warned about, so it's said once.
+  warnedVersion: string | null;
+  // Base Skills the CEO turned on or off (ADR 9); one missing here uses its default.
+  baseSkills: Record<string, boolean>;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -21,6 +25,8 @@ export const DEFAULT_SETTINGS: Settings = {
   concurrency: 3,
   bossAutonomy: true,
   claudePath: "claude",
+  warnedVersion: null,
+  baseSkills: {},
 };
 
 // Every field optional with a default, so a settings file from an older version still loads.
@@ -36,10 +42,23 @@ export function readSettings(raw: unknown): Settings {
       Number.isInteger(r.concurrency) && (r.concurrency as number) >= 1 && (r.concurrency as number) <= 10 ? (r.concurrency as number) : d.concurrency,
     bossAutonomy: typeof r.bossAutonomy === "boolean" ? r.bossAutonomy : d.bossAutonomy,
     claudePath: typeof r.claudePath === "string" && r.claudePath.trim() ? r.claudePath.trim() : d.claudePath,
+    warnedVersion: typeof r.warnedVersion === "string" ? r.warnedVersion : d.warnedVersion,
+    baseSkills:
+      r.baseSkills && typeof r.baseSkills === "object"
+        ? Object.fromEntries(Object.entries(r.baseSkills).filter(([, v]) => typeof v === "boolean"))
+        : d.baseSkills,
   };
 }
 
 export type Limits = { rateLimit: RateLimit; seenAt: number } | null;
 
 // Context tokens a session starts every model turn with: with everything loaded, and per Role.
-export type ContextCosts = { claudeVersion: string; everything: number; roles: Record<string, number>; measuredAt: number } | null;
+// `base` is what each Base Skill adds on top of a lean Role, measured the same way.
+export type ContextCosts = {
+  claudeVersion: string;
+  everything: number;
+  roles: Record<string, number>;
+  base?: Record<string, number>;
+  lean?: number;
+  measuredAt: number;
+} | null;

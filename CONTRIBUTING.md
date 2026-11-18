@@ -19,17 +19,17 @@ section grows when the app arrives.
 Each answers one question from the README's "What's been tested" table. Put each in `spikes/<name>/`
 with a README that says the question, how to run it and the result.
 
-1. **hook-listener:** run one `claude -p` session with command hooks that write to a local socket;
-   print an Activity for every event.
-2. **permission-host:** answer a permission prompt of a `claude -p` session from outside the terminal.
-3. **rate-limits:** confirm the status line's `rate_limits` fields on a Pro or Max plan.
+1. **hook-listener:** done: hooks don't run in a lean `--safe-mode` session, and `stream-json` already
+   carries everything the office needs ([ADR 2](docs/adr/0002-the-office-costs-no-tokens.md)).
+2. **permission-host:** done ([ADR 5](docs/adr/0005-approvals-follow-claude-code-permissions.md)).
+3. **rate-limits:** done: read from `stream-json`'s `rate_limit_event`, not the status line.
 4. **office-fps:** six animated low-poly Peeps in React Three Fiber on an M1 MacBook Air.
 
 ## How the tests work
 
 Tests check what the CEO sees, not how the code does it. They run the real Engine against a pretend
-Claude Code (`test/pretend`) that replays recorded hook events and stream messages, scrubbed of
-anything personal. They never call a real model.
+Claude Code (`test/pretend`) that replays recorded `stream-json` sessions, scrubbed of anything
+personal ([docs/test-data.md](docs/test-data.md)). They never call a real model.
 
 ## Privacy: the repository is public
 

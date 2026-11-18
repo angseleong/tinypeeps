@@ -1,6 +1,6 @@
 # Architecture
 
-How sessions, hook events and the window fit together. **Nothing here is built yet.** The decisions
+How sessions, their `stream-json` and the window fit together; built as described unless `TODO.md` says otherwise. The decisions
 are in [docs/adr/](adr/); this page shows how they connect. Back to the [README](../README.md).
 
 ## The picture
@@ -16,7 +16,7 @@ are in [docs/adr/](adr/); this page shows how they connect. Back to the [README]
  │   Session runner ── Activity map ── Task board ── Usage reader ── Approvals │
  │        │                ▲                             ▲              ▲      │
  └────────┼────────────────┼─────────────────────────────┼──────────────┼──────┘
-          │ spawns         │ hook events (local socket)  │ reads JSONL  │ permission
+          │ spawns         │ stream-json (stdout)        │ reads JSONL  │ permission
           ▼                │                             │              │ prompts
    claude -p  (one per Peep, in the Office folder) ──────┴──────────────┘
 ```
@@ -34,7 +34,6 @@ that matter, all present in Claude Code 2.1.292:
 | `--tools` | The Role's tools only; most of the context saving ([ADR 7](adr/0007-plugins-per-role.md#what-we-found-2026-11-16-claude-code-21292)) |
 | `--safe-mode` | Lean Roles: none of the CEO's plugins, skills, hooks or CLAUDE.md; a Role's Skills come back as files listed in its brief ([ADR 9](adr/0009-skills-per-role-with-base-skills.md)) |
 | `--mcp-config` + `--strict-mcp-config` | Only the Role's MCP servers, so unused ones cost nothing |
-| `--settings` | The hooks below (package B) |
 | `--input-format stream-json` + `--permission-prompts host` + `--permission-prompt-tool stdio` | The task goes in on stdin; permission questions come out as `can_use_tool` and wait for the CEO's Approval ([ADR 5](adr/0005-approvals-follow-claude-code-permissions.md#what-we-found-2026-11-17-claude-code-21292)) |
 | `--allowedTools` | Rules the CEO added with "Always allow for this Role" |
 
@@ -46,23 +45,22 @@ starts when another finishes.
 
 ## Seeing what a Peep does, for free
 
-The Engine passes each session a settings file that registers command hooks for the events below. Each
-hook runs a tiny script that writes the event's JSON to the Engine's local socket and exits. The model
-never sees or produces any of it.
+Everything comes from the session's own `stream-json` output; the model never sees or produces any of
+it. Hooks were the first plan, but they don't run in a lean `--safe-mode` session
+([ADR 2](adr/0002-the-office-costs-no-tokens.md#what-the-hook-listener-spike-found-2026-11-18-claude-code-21292)).
 
-| Hook event | What the Engine does |
+| `stream-json` message | What the Engine does |
 |---|---|
-| `SessionStart`, `SessionEnd` | Peep sits down / stands up |
-| `UserPromptSubmit` | A Task or a chat message reached the Peep |
-| `PreToolUse`, `PostToolUse`, `PostToolUseFailure` | Activity changes (see [office.md](office.md#activities)) |
-| `SubagentStart`, `SubagentStop` | A helper appears beside the Peep and leaves |
-| `PermissionRequest` | Not needed: the `can_use_tool` question on stdout already moves the Peep |
-| `Notification` | Shown on the Peep (e.g. waiting for input) |
-| `Stop` | Task output ready; Handoff Note read; Peep goes Idle |
+| `system` `init` | Peep sits down; the Claude Code version is checked against the tested ones |
+| `assistant` with a `tool_use` | Activity from the tool (see [office.md](office.md#activities)); a `Write` or `Edit` path is listed on the Task |
+| a message with a `parent_tool_use_id` | A subagent is working: the Peep stays Delegating |
+| `user` with a `tool_result` | Back to Thinking after a few seconds without a new tool; Stuck after two failed results in a row |
+| `control_request` `can_use_tool` | Waiting for Approval ([ADR 5](adr/0005-approvals-follow-claude-code-permissions.md)) |
+| `rate_limit_event` | The Weekly Limit |
+| `result` | Task output ready; Handoff Note read; Usage counted; Peep goes Idle |
 
-Mapping events to Activities is a pure function in `src/core`, tested without Electron or Claude Code.
-The official list of events is in the [hooks reference](https://code.claude.com/docs/en/hooks); check
-it before adding one.
+Mapping messages to Activities is pure code in `src/core/activity.ts`, tested without Electron or
+Claude Code.
 
 ## Counting tokens
 

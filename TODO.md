@@ -49,7 +49,7 @@ The shell every later page is built in, so nothing gets restyled twice.
       ([scenarios.md](docs/scenarios.md#drop))
 - [x] **Words:** every on-screen word in `src/core/strings/`, English and Indonesian, language setting
 - [x] **Settings page:** language, theme, Concurrency Limit, Manager autonomy, Claude Code path (removes
-      the PATH `shortcut:` in `src/main/index.ts`)
+      the PATH `shortcut:` in `src/desktop/main.ts`)
 - [x] **Code health:** Biome (lint, format), GitHub Actions CI running lint, typecheck and tests
 
 ## A. Thrifty office
@@ -93,73 +93,103 @@ labels log "synchronously unmount a root" warnings on start.
 The CEO gives a Goal and only approves. [ADR 4](docs/adr/0004-memory-is-files-the-app-writes.md),
 [ADR 5](docs/adr/0005-approvals-follow-claude-code-permissions.md), [prd.md](docs/prd.md#2-give-work)
 
-- [ ] **Spike `hook-listener`** (smaller now: Approvals don't need hooks): command hooks write events to a local socket the Engine reads;
-      reachable only from this computer ([SECURITY.md](SECURITY.md#whats-in-scope))
-- [ ] **Hooks wired:** `SessionStart/End`, `UserPromptSubmit`, `Pre/PostToolUse`, `PostToolUseFailure`,
-      `SubagentStart/Stop`, `PermissionRequest`, `Notification`, `Stop`; Activity within 200 ms
-- [ ] **Activities complete** ([office.md](docs/office.md#activities)): Thinking after a few seconds
-      without a tool, Delegating (helper appears and leaves), Stuck only after two failures in a row
-      (today it's one), Waiting for Approval
+**Where B stands** (2026-11-18). Clicked through in the real window with Claude Code 2.1.292 on a
+made-up Office (a bakery's Instagram video): Kickoff with Opus, Hiring Plan, a Goal planned into two
+Tasks, Approvals, reviews, one Escalation that passed and one that went to the CEO, Compaction, Stop
+all, Meeting now and quitting with a Peep at work. Every open item starts with `Check` (built and
+tested; tick it once the named part has been seen in the window) and says what's left. The last three
+were seen on 2026-11-18 with a scripted pretend Claude Code (a subagent, an Approval, two failed tools,
+version 2.1.998), 0 tokens.
+
+| Status | How many | Items |
+| ------ | -------- | ----- |
+| Done | 21 | all but the one below |
+| `Check` | 1 | Approval pile: the system notification |
+
+- [x] **Spike `hook-listener`:** hooks never run in a lean `--safe-mode` session, not even from
+      `--settings`; `stream-json` already carries tool calls, results, subagents, permission questions
+      and the end ([ADR 2](docs/adr/0002-the-office-costs-no-tokens.md#what-the-hook-listener-spike-found-2026-11-18-claude-code-21292))
+- [x] **Activities from `stream-json` instead of hooks:** the hook list (`SessionStart/End`,
+      `Pre/PostToolUse`, `SubagentStart/Stop`…) is replaced by the stream messages that carry the same
+      thing ([architecture.md](docs/architecture.md#seeing-what-a-peep-does-for-free)); an Activity shows as
+      soon as its line arrives, no socket or script runs on the CEO's computer
+- [x] **Activities complete** ([office.md](docs/office.md#activities)): Thinking after 3 s
+      without a new tool, Delegating while a subagent works (a small helper appears beside the Peep and
+      goes), Stuck only after two failed tools in a row, Waiting for Approval. Tested
+      (`src/core/activity.test.ts`); seen: the helper beside the Peep, one failed tool stays Running and
+      the second turns Stuck
 - [x] **Spike `permission-host`**, then **Approvals:** `--input-format stream-json`,
       `--permission-prompts host`, `--permission-prompt-tool stdio`; the `acceptEdits` `shortcut:` is
       gone ([ADR 5](docs/adr/0005-approvals-follow-claude-code-permissions.md#what-we-found-2026-11-17-claude-code-21292))
-- [ ] **Approval flow:** Peep walks to the CEO's desk, request in plain words, Allow / Deny / "always
-      allow this for this Role"; the CEO's own allow rules still skip the question; never
-      `bypassPermissions`. Built and passing against real Claude Code from the Engine; tick after a
-      click-through in the real window
-- [ ] **Approval pile:** several stack oldest first, HUD count, system notification when the window is
-      hidden. Built (oldest card on top, "+N more", HUD count, notification); tick after the window check
+- [x] **Approval flow:** Peep walks to the CEO's desk, request in plain words, Allow / Deny / "always
+      allow this for this Role" (saved into the Role file, and it also answers the same question already
+      waiting); a read outside the Office folder shows its path; never `bypassPermissions`. The card sits
+      above the Meeting Room panel
+- [ ] `Check` **Approval pile:** several stack oldest first, HUD count, system notification when the window is
+      hidden. Seen: four waiting, oldest on top, "+3 more waiting", HUD count; with the window hidden the
+      app does send the notification, but macOS refuses it for the dev build (`UNErrorDomain error 1`:
+      Electron isn't allowed to notify). Left to see: the banner, after allowing Electron in System
+      Settings → Notifications, or in the signed build from D
 - [x] **Spike `skills-per-peep`:** a lean session loads no `.claude/skills/`; Skills as files listed in
       the brief work ([ADR 9](docs/adr/0009-skills-per-role-with-base-skills.md#what-the-spike-found-2026-11-17-claude-code-21292));
       Role files have `skills:`
-- [ ] **Measure Base Skills:** what caveman, ponytail and the Matt Pocock skills add per turn against
-      the 10% rule, and that review verdicts stay as good
-- [ ] **Base Skills:** caveman and ponytail rules in every Peep's system prompt (read from the CEO's
-      installed plugins), Matt Pocock skills on the Manager only; listed in Settings, each can be
-      turned off; their size shows on the Team page
-- [ ] **Kickoff and Brief** ([ADR 8](docs/adr/0008-every-office-starts-with-the-manager.md)): a new
-      Office has only the Manager; the CEO's first message starts the Kickoff (`grilling`, in the
-      Meeting Room); then the Manager writes the Brief with `skills/brief`. Built: a new Office opens
-      on the Meeting Room panel; the Manager's session stays open between the CEO's lines and counts
-      tokens per turn. Clicked through in the real window with Opus
-      ([ADR 8](docs/adr/0008-every-office-starts-with-the-manager.md#what-we-found-2026-11-17-claude-code-21292));
-      the meeting chat is saved in `.tinypeeps/meeting.json` and comes back after a restart
-- [ ] **Hiring Plan:** draft Role files in `.tinypeeps/hiring/` as cards (job, model, tools, Skills
-      from `find-skills`, one-line `why`); the CEO edits any card, removes or adds Roles, then approves
-      or rejects (asks what to change, nothing run); installing a Skill is an Approval; hiring later
-      works the same way ([templates.md](docs/templates.md#the-hiring-plan)). Built: cards with name,
-      job, model, Skills (⚠ when not on this computer), remove, "Ask for changes", Approve seats each
-      hire; Skills already on this computer are copied into `.tinypeeps/skills/`. Passed once against
-      real Claude Code; tick after the window check
-- [ ] **Manager plans:** a Goal in the Command Bar → the Manager (Opus, planning only) returns Tasks with a
-      Peep and a model each, with a one-line reason; Manager autonomy off leaves them in Backlog
-- [ ] **Tasks page:** kanban Backlog → Working → Review → Done; cards show Avatar, model, tokens; drag a
-      card onto a Peep to assign
-- [ ] **Review and Escalation:** a finished Task goes to the Manager's Office; the Manager reviews it
-      with `skills/review` (Pass or Changes); Changes runs once more on `escalate_to` with the list,
-      counted, and a second Changes goes to the CEO; when a Peep's Handoff Note says it lacked a tool, the Manager suggests adding it
-- [ ] **Quick Actions complete** ([office.md](docs/office.md#rooms-in-v1)): CEO Office "What do you need
-      from me?", Meeting Room "Plan this together" / "Hand over to [Peep]", next to a Peep "Ask for
-      progress" / "Help them", Lounge "Take a break" stops after the current Task, "Stop and do this
-      first" sends the current Task back to Backlog; dropping at its own desk ends the Drop; Quick
-      Actions live as data per Room
-- [ ] **CEO controls** ([prd.md](docs/prd.md#2-give-work)): Meeting now (chosen Peeps finish their
-      step and meet in the Meeting Room), Pause all (after the current Task), Stop all (asks once;
-      Tasks back to Backlog, Usage kept). All three are built in the HUD, not yet checked in the window.
-      Meeting now pauses everyone and opens the Meeting Room with the Manager, given each Peep's latest
-      result; Peeps walking to the room waits for the layout in C
-- [ ] **Memory:** Handoff Note (≤150 words) saved to `.tinypeeps/notes/<task>.md`; `company.md`; a new
-      Task gets Company Note + Role brief + related notes only; never `--resume`; side panel shows and
-      edits notes, and lists the files the Peep produced (from its Write and Edit calls)
-- [ ] **Compaction:** `company.md` over its limit is compacted once by Haiku, the CEO sees the diff
-- [ ] **Failures:** a crashed session shows Stuck, its Task goes back to Backlog, Usage kept from the
-      transcript; quitting with Peeps working asks first, then stops them and returns their Tasks
-- [ ] **Version check:** warn once when the installed Claude Code version hasn't been tested
-      ([ADR 1](docs/adr/0001-electron-app-over-claude-code-sessions.md))
-- [ ] **Layout:** as the Engine grows, move it out of `src/main` into `src/engine` (Node), `src/desktop`
-      (Electron) and `src/app` (window), as [AGENTS.md](AGENTS.md) plans
-- [ ] **Tests:** a pretend Claude Code in `test/pretend` replaying recorded, scrubbed events;
-      `docs/test-data.md`; a test that fails on any model call outside a Task
+- [x] **Measure Base Skills:** on a 6,562-token lean Role caveman adds +1,483 (+22.6%), ponytail +888
+      (+13.5%); both over the 10% rule. One Opus review with and without them gave the same verdict and
+      the same four fixes ([ADR 9](docs/adr/0009-skills-per-role-with-base-skills.md#what-the-base-skills-cost-2026-11-18-claude-code-21292))
+- [x] **Base Skills:** rule text read by running each plugin's own `SessionStart` hook (throwaway HOME,
+      so nothing lands in `~/.claude`), added to every brief when on; listed in Settings with their size
+      and a toggle; the Team page shows what they add. Both ship **off**, by the 10% rule; the Matt
+      Pocock skills stay on the Manager only
+- [x] **Kickoff and Brief** ([ADR 8](docs/adr/0008-every-office-starts-with-the-manager.md)): a new
+      Office opens on the Meeting Room with only the Manager; the Manager writes the Brief, the Company
+      Note and the Hiring Plan; the chat comes back after a restart (`.tinypeeps/meeting.json`)
+- [x] **Hiring Plan:** draft Role files in `.tinypeeps/hiring/` as cards; the CEO edits a card (a renamed
+      hire kept its new name), removes or adds Roles, asks for changes or approves; approving seats each
+      hire and removes the drafts; installing a Skill is an Approval
+      ([templates.md](docs/templates.md#the-hiring-plan))
+- [x] **Manager plans:** a Goal in the Command Bar (once there's a team) → the Manager (Opus, read-only,
+      "planning, not the Kickoff") returns Tasks with a Peep, a model and a one-line reason; Manager
+      autonomy off leaves them in Backlog. Shortcut: Tasks of one Goal run side by side, the plan has no
+      "after" between them
+- [x] **Tasks page:** kanban Backlog → Working → Review → Done; cards show Avatar, model, tokens, a second
+      try and "Your call"; drag a card onto a Peep to assign and start it ("Give to" from the keyboard);
+      Accept, Back to Backlog, Remove
+- [x] **Review and Escalation:** a finished Task goes to the Manager, who reviews it with `skills/review`
+      and ends with `Verdict: Pass|Changes`; Changes runs once more on `escalate_to` with the list (seen:
+      Haiku → Sonnet, then Pass); a second Changes, or no verdict, goes to the CEO; every "Suggest tool:"
+      line becomes an "Add" button for a tool the Peep doesn't have; the Dashboard counts Escalations per
+      Peep
+- [x] **Quick Actions complete** ([office.md](docs/office.md#rooms-in-v1)): Quick Actions are data per
+      Room in `src/core/strings`, with a Meeting Room, Server Room and Archive added to the floor; CEO Office
+      "What do you need from me?", Manager's Office "Review my work" / "Check against the Brief", Meeting
+      Room "Plan this together" / "Hand over to [Peep]", Library "Find a Skill for this", Server Room, Archive,
+      next to a Peep "Ask for progress" / "Help them", Lounge "Take a break" (stops after the current
+      Task), "Stop and do this first" (the Task goes back to Backlog and resumes after), dropping at its
+      own desk ends the Drop. Seen: Meeting Room and Lounge actions, Hand over with nothing open, Take a
+      break, Stop and do this first (the Task went to Backlog and came back to Working after), Review my
+      work (a second Manager review), a hand-over of a running Task (the old run shows "Stopped by you",
+      not an error), the own-desk drop
+- [x] **CEO controls** ([prd.md](docs/prd.md#2-give-work)): Meeting now pauses everyone and opens the
+      Meeting Room with the Manager, given each Peep's latest result (ending it resumes); Pause all;
+      Stop all asks once, then stops every session, Tasks back to Backlog, nothing starts on its own
+      until the CEO acts. Peeps walking to the room waits for the layout in C
+- [x] **Memory:** Handoff Note (≤150 words) saved to `.tinypeeps/notes/<task>.md`; the Manager writes
+      `company.md` with the Brief; a new Task gets Company Note + Role brief + the notes of its Goal (last
+      5); never `--resume`; side panel shows and edits notes and lists the files the Peep wrote
+- [x] **Compaction:** `company.md` over 300 words is shortened once by Haiku before the next Task
+      (seen: 497 → 149 words); the CEO sees the change line by line and keeps or undoes it; an undone or
+      kept note isn't compacted again until it changes. Its tokens count under "company"
+- [x] **Failures:** a crashed session shows Stuck, its Task goes back to Backlog, Usage kept from the
+      transcript; quitting with Peeps working asks first ("Stop and quit" / "Keep working"), then stops
+      them and returns their Tasks (seen, Usage of the stopped run kept)
+- [x] **Version check:** warn once when the installed Claude Code isn't one in
+      `src/core/claude-version.ts` (tested); seen with a pretend 2.1.998, and it now stays its full 4 s
+      instead of being replaced by the Peep's next tool ([ADR 1](docs/adr/0001-electron-app-over-claude-code-sessions.md))
+- [x] **Layout:** the Engine in `src/engine` (Node only), Electron in `src/desktop`, the window in
+      `src/app`, the 3D office in `src/app/office`, as [AGENTS.md](AGENTS.md) plans
+- [x] **Tests:** a pretend Claude Code in `test/pretend` replaying recorded, scrubbed sessions
+      ([docs/test-data.md](docs/test-data.md)); `test/board.test.ts` runs a Goal through the real Engine
+      and fails on any model call besides the plan, the Task and its review
       ([ADR 2](docs/adr/0002-the-office-costs-no-tokens.md))
 
 ## C. Pretty office
@@ -230,6 +260,5 @@ accounts or cloud sync: Templates stay files on GitHub.
   rest; until then a Role loads none (lean) or all (everything).
 - How should the Manager pick a model when the Role default isn't obvious? Start with defaults and
   Escalation; revisit with data after B.
-- Hooks or `stream-json` for Activities? The prototype uses `stream-json` alone; B adds hooks for what
-  the stream doesn't carry (permissions, subagents, notifications). Update
-  [architecture.md](docs/architecture.md) once settled.
+- Hooks or `stream-json` for Activities? Settled in B: `stream-json` only, since hooks don't run in a
+  lean session ([ADR 2](docs/adr/0002-the-office-costs-no-tokens.md)).
