@@ -140,7 +140,7 @@ function RoleCard({
         </Field>
         <Field label={s.team.room}>
           <select className={inputClass} value={r.room} onChange={(e) => setR({ ...r, room: e.target.value })}>
-            {ROOMS.map((room) => (
+            {ROOMS.filter((room) => room.id !== "door").map((room) => (
               <option key={room.id} value={room.id}>
                 {s.rooms[room.id].name}
               </option>

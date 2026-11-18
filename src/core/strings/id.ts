@@ -205,6 +205,7 @@ export const id: Strings = {
         ],
       ],
     },
+    door: { name: "Pintu Depan", actions: [] },
     lounge: { name: "Lounge", actions: [] },
   },
   panel: { tokens: "token", stop: "Stop", lastResult: "Hasil terakhir", none: "Belum ada.", log: "Log", model: "Model" },
