@@ -1,6 +1,6 @@
 import { useAnimations, useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
+import { type Ref, useMemo, useRef } from "react";
 import { BoxGeometry, CylinderGeometry, type Group, Mesh, type Object3D } from "three";
 import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
 import type { Activity } from "../../core/activity";
@@ -65,6 +65,7 @@ export function Person({ look, activity, motion, reduced }: Props) {
   }, [gltf]);
   const root = useRef<Group>(null);
   const seat = useRef<Group>(null);
+  const chair = useRef<Group>(null);
   const { actions } = useAnimations(gltf.animations, root);
   const playing = useRef("");
 
@@ -81,6 +82,7 @@ export function Person({ look, activity, motion, reduced }: Props) {
     for (const [k, o] of Object.entries(held)) o.visible = posing && st.hold === k;
     // The sit clip lowers the hips to the floor (0.15); a sitting Peep sits up on its chair instead.
     if (seat.current) seat.current.position.y = posing && st.sit ? 0.13 : 0;
+    if (chair.current) chair.current.visible = posing && !!st.sit; // only once it sits: not on the way, not while carried
     if (!posing) return;
     const t = clock.elapsedTime;
     const w = (speed: number, amount: number, phase = 0) => (reduced ? 0 : Math.sin(t * speed + phase) * amount);
@@ -115,7 +117,7 @@ export function Person({ look, activity, motion, reduced }: Props) {
       <group ref={seat}>
         <primitive object={scene} />
       </group>
-      {STANCE[activity].sit && <Chair />}
+      <Chair ref={chair} />
     </group>
   );
 }
@@ -147,9 +149,9 @@ function cup(): Object3D {
 }
 
 // A Peep brings its own office chair when it sits: the pods have no chairs, so the way to a desk stays clear.
-function Chair() {
+function Chair({ ref }: { ref: Ref<Group> }) {
   return (
-    <group position={[0, 0, -0.06]}>
+    <group ref={ref} position={[0, 0, -0.06]} visible={false}>
       <mesh position={[0, 0.115, 0]} material={toon(PAL.screen)}>
         <boxGeometry args={[0.3, 0.035, 0.28]} />
       </mesh>
