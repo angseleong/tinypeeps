@@ -2,7 +2,7 @@
 
 The 3D world: its Rooms, what each Activity looks like, how a Drop works, and where the art comes
 from. Back to the [README](../README.md). **Built so far:** the Look and the `studio-small` layout
-(C2). The rest is still a plan.
+(C2), and Peeps as Kenney characters with a pose per Activity (C3). The rest is still a plan.
 
 ## Look
 
@@ -13,8 +13,9 @@ without using any brand's characters, logos or assets.
 
 **How it's made:** `MeshToonMaterial` with a three-band gradient, one shared material per colour
 (`src/app/office/look.ts`); KayKit pieces keep their texture but get the same toon shading. An
-orthographic camera at the isometric angle turns ±20° and zooms 0.9x to 2.6x towards the cursor, with
-no panning. Shadows come from one directional light whose shadow map is drawn once, when the furniture
+orthographic camera at the isometric angle turns ±20° and zooms 0.75x to 2.6x towards the cursor; a
+right-drag pans. Where it looks is held inside the office, the more tightly the further out it is, so
+zoomed all the way out the whole office is in view, centred. Shadows come from one directional light whose shadow map is drawn once, when the furniture
 has loaded (drei `BakeShadows`); Peeps cast none and get a soft blob instead. drei's
 `AccumulativeShadows` was tried first and baked nothing with three 0.187. The glTF loader runs without
 Draco or meshopt decoders: their WebAssembly breaks the window's strict CSP.
@@ -89,6 +90,17 @@ of "Typing") without changing what it means.
 | Idle | `Stop`, no Task waiting | Coffee at the lounge |
 | Queued | Over the Concurrency Limit | Sitting on the sofa |
 
+**How the poses are made** (`src/app/office/Person.tsx`): each Peep is one of Kenney's Mini Characters,
+at twice the pack's size, with the pack's own clips: `walk` on the way, `fall` while carried, then the
+Activity's stance. A Peep stays at its own desk for every working Activity (no walk to the Library or
+the Server Room on each tool call; those would make Peeps pace all day), so Researching is the phone
+and Running is pressing buttons at the desk. Where no clip fits, bones are bent on top of one: arms
+forward for typing, a book held up, phone at the ear, hand on chin, scratching the head, a tapping foot.
+A sitting Peep brings its own office chair (the pods have none, so the way to a desk stays clear).
+Thinking shows a thought bubble and Stuck a red "!", both drawn in 3D. The helper of Delegating is a
+small copy of the Peep. A Peep's colour is the ring on the floor under it, as on the HUD. A Role can
+rename Activities for its job with `labels:` in its Role file (`labels: { typing: Editing video }`).
+
 The map from tool names to Activities is data in `src/core`, so a new tool or MCP server gets an
 Activity by adding one line. Unknown tools show as Running.
 
@@ -140,7 +152,8 @@ All free and licensed CC0 unless noted. Check each pack's own page before adding
 | KayKit Character Pack: Adventurers | Base characters, rigged, 25+ accessories | [itch.io](https://kaylousberg.itch.io/kaykit-adventurers) |
 | KayKit Character Animations (1.1) | Walk, sit, wave, cheer, work and more, for KayKit characters | [itch.io](https://kaylousberg.itch.io/kaykit-character-animations) |
 | KayKit Furniture Bits | Desks, chairs, shelves, sofas | [itch.io](https://kaylousberg.itch.io/furniture-bits) |
-| Quaternius Universal Base Characters | Plainer alternative characters, glTF | [quaternius.com](https://quaternius.com/packs/universalbasecharacters.html) |
+| Kenney Mini Characters (2.0) | **The Peeps**: 13 people with 32 clips each (walk, sit, interact, holding, fall) | [kenney.nl](https://kenney.nl/assets/mini-characters) |
+| Quaternius Universal Base Characters | Looked at, not used: underwear-only, 13k triangles, no clips | [quaternius.com](https://quaternius.com/packs/universalbasecharacters.html) |
 
 Shading is ours: a matte toon material and the warm palette, so mixed packs look like one world.
 

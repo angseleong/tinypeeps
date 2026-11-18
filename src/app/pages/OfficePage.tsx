@@ -8,7 +8,7 @@ import type { Settings } from "../../core/settings";
 import type { Strings } from "../../core/strings";
 import { labelText } from "../../core/strings";
 import { savingPercent, since, startOfToday, totals, type UsageRecord, weekAgo } from "../../core/usage";
-import { ActivityIcon, ActivityPill, isWorking, StatusDot } from "../activity-ui";
+import { ActivityIcon, ActivityPill, activityLabel, isWorking, StatusDot } from "../activity-ui";
 import { Office } from "../office/Office";
 import { type Peep, type Room, type Runtime, roomAt, type Vec2 } from "../office/office-data";
 import { Button, Chip, CountUp, compact, cx, exitFast, inputClass, ModelBadge, Segmented, springs, Toggle } from "../ui";
@@ -349,7 +349,7 @@ function Roster({ s, peeps, selectedId, onSelect }: { s: Strings; peeps: Peep[];
           <span className="text-[13px] font-medium">{p.name}</span>
           <span className={cx("flex items-center gap-1.5 text-[12px]", selectedId === p.id ? "opacity-70" : "text-muted")}>
             <ActivityIcon activity={p.activity} size={12} />
-            {s.activity[p.activity]}
+            {activityLabel(s, p)}
           </span>
           <StatusDot activity={p.activity} />
         </motion.button>
@@ -479,7 +479,7 @@ function Inspector({
       </div>
       <div className="flex flex-col gap-2 px-5">
         <div className="flex items-center justify-between rounded-tile bg-fill-1 px-3.5 py-3 text-[13px]">
-          <ActivityPill activity={peep.activity} label={s.activity[peep.activity]} />
+          <ActivityPill activity={peep.activity} label={activityLabel(s, peep)} />
           <span className="tabular text-muted">
             {compact(peep.tokens)} {s.panel.tokens}
           </span>

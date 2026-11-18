@@ -211,8 +211,15 @@ From capsules to a warm low-poly office. [office.md](docs/office.md)
       Lounge (sofa, coffee machine). Built (`office-data.ts`, `Furniture.tsx`): closed rooms behind
       glass with doors, six cubicle pods of facing desks, names on hover; seats saved by the first
       layout move to the new ones (`test/office-layout.test.ts`). Seen in the real window
-- [ ] **Poses per Activity:** laptop typing, open book, library shelf or phone, server rack, thought
-      bubble, helper peep, paper to the CEO, red "!", coffee, sofa; Role-renamed Activity labels
+- [x] **Poses per Activity:** laptop typing, open book, library shelf or phone, server rack, thought
+      bubble, helper peep, paper to the CEO, red "!", coffee, sofa; Role-renamed Activity labels. Built
+      (`src/app/office/Person.tsx`): Peeps are Kenney Mini Characters (chosen by the maintainer: no
+      KayKit pack has office clothes), walking on the way, dangling when carried, then the Activity's
+      pose at the desk (phone for Researching, buttons for Running: no walk per tool call), sitting on
+      a chair that appears only once seated; `labels:` in a Role file renames Activities
+      (`test/role-labels.test.ts`). Checked by the maintainer in the real window with Simulation on,
+      light and dark; the fps log reads 60 while Peeps move and nothing when still (144 Hz monitor).
+      Queued sits on its own chair in the Lounge, not on the sofa
 - [x] **Walking:** simple paths around furniture, face where they go. Built (`src/app/office/paths.ts`):
       A* on a 0.25 grid from the same walls, doors and furniture the office draws, corners cut;
       `test/office-paths.test.ts` walks between 9 places and never crosses a wall. Peeps don't avoid
