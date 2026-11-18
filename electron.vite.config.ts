@@ -10,6 +10,7 @@ export default defineConfig({
   preload: { build: { rollupOptions: { input: { index: resolve("src/desktop/preload.ts") } } } },
   renderer: {
     root: "src/app",
+    publicDir: resolve("assets"), // the office's art (assets/CREDITS.md), served as furniture/…, characters/…
     build: { rollupOptions: { input: { index: resolve("src/app/index.html") } } },
     plugins: [react(), tailwindcss()],
   },

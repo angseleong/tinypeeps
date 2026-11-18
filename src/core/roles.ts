@@ -5,6 +5,8 @@ export type Model = "opus" | "sonnet" | "haiku";
 
 // The Manager's Role id: "bos" from the prototype, kept so Offices made then still find it.
 export const MANAGER_ID = "bos";
+// Behind the desk in the Manager's Office, facing the door; it rests in the Lounge's corner.
+const MANAGER_SEAT: { desk: [number, number]; lounge: [number, number] } = { desk: [-3.5, -9.9], lounge: [-13.4, 9.4] };
 export const MODELS: Model[] = ["opus", "sonnet", "haiku"];
 
 // Tools a Role may be given. Everything else Claude Code has stays off for that Peep.
@@ -54,8 +56,7 @@ export function parseRole(id: string, text: string): Role {
     everything: f.everything === true,
     room: String(f.room ?? "desks"),
     color: String(f.color ?? "#5b7fa6"),
-    desk: pair(f.desk, [0, 0]),
-    lounge: pair(f.lounge, [-6, 4]),
+    ...moveOldSeat(id, pair(f.desk, SLOTS[0].desk), pair(f.lounge, SLOTS[0].lounge)),
     why: typeof f.why === "string" ? f.why : undefined,
     brief: m[2].trim(),
   };
@@ -120,22 +121,32 @@ export function defaultRoles(lang: Lang): Role[] {
       everything: false,
       room: "ceo",
       color: "#c96f4a",
-      desk: [-6, -5],
-      lounge: [-7.8, 3.8],
+      desk: MANAGER_SEAT.desk,
+      lounge: MANAGER_SEAT.lounge,
       brief: `${MANAGER_BRIEF}\n\n${lang === "en" ? "Work only in the current folder. Answer in English." : "Kerjakan di folder saat ini saja. Jawab dalam Bahasa Indonesia."}`,
     },
   ];
 }
 
 // Where hired Peeps sit and rest, and their colours, in hiring order.
+// Desks: the first pod in the office (src/app/office/office-data.ts PODS), so hires sit facing each other.
 const SLOTS: { desk: [number, number]; lounge: [number, number]; color: string }[] = [
-  { desk: [-2, -1], lounge: [-6.2, 3.8], color: "#5b7fa6" },
-  { desk: [2, -1], lounge: [-4.6, 3.8], color: "#5f8f6b" },
-  { desk: [0, 2], lounge: [-4.6, 5.6], color: "#b58a3c" },
-  { desk: [-2, 2], lounge: [-6.2, 5.6], color: "#8a6bb5" },
-  { desk: [2, 2], lounge: [-7.8, 5.6], color: "#b5566b" },
-  { desk: [0, -1], lounge: [-3.0, 4.7], color: "#4f9a9a" },
+  { desk: [-6.9, -0.7], lounge: [-13, 5], color: "#5b7fa6" },
+  { desk: [-6.9, 2.7], lounge: [-11.6, 5], color: "#5f8f6b" },
+  { desk: [-5.5, -0.7], lounge: [-10.2, 5], color: "#b58a3c" },
+  { desk: [-5.5, 2.7], lounge: [-10.4, 6.6], color: "#8a6bb5" },
+  { desk: [-4.1, -0.7], lounge: [-10.4, 8.2], color: "#b5566b" },
+  { desk: [-4.1, 2.7], lounge: [-12, 8.8], color: "#4f9a9a" },
 ];
+
+// Seats from the first layout (before C2), still in saved Offices: each moves to its new seat on read.
+// shortcut: matched by exact coordinates; drop once no saved Office has them.
+const OLD_DESKS = ["-2,-1", "2,-1", "0,2", "-2,2", "2,2", "0,-1"];
+function moveOldSeat(id: string, desk: [number, number], lounge: [number, number]) {
+  if (id === MANAGER_ID && `${desk}` === "-6,-5") return MANAGER_SEAT;
+  const i = OLD_DESKS.indexOf(`${desk}`);
+  return i < 0 ? { desk, lounge } : SLOTS[i];
+}
 
 // The colours hires get, in hiring order; the Hiring Plan's cards preview them.
 export const HIRE_COLORS = SLOTS.map((x) => x.color);

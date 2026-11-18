@@ -1,7 +1,8 @@
 # The office
 
 The 3D world: its Rooms, what each Activity looks like, how a Drop works, and where the art comes
-from. Back to the [README](../README.md). **Nothing here is built yet.**
+from. Back to the [README](../README.md). **Built so far:** the Look and the `studio-small` layout
+(C2). The rest is still a plan.
 
 ## Look
 
@@ -9,6 +10,19 @@ Low-poly, matte, warm. Think a calm animated explainer, not a game: soft shadows
 that can rotate and zoom a little, and a palette of cream, terracotta, sage and warm grey. Peeps are
 small and chunky so their poses read from far away. Inspired by the style of clean product animation,
 without using any brand's characters, logos or assets.
+
+**How it's made:** `MeshToonMaterial` with a three-band gradient, one shared material per colour
+(`src/app/office/look.ts`); KayKit pieces keep their texture but get the same toon shading. An
+orthographic camera at the isometric angle turns ±20° and zooms 0.9x to 2.6x towards the cursor, with
+no panning. Shadows come from one directional light whose shadow map is drawn once, when the furniture
+has loaded (drei `BakeShadows`); Peeps cast none and get a soft blob instead. drei's
+`AccumulativeShadows` was tried first and baked nothing with three 0.187. The glTF loader runs without
+Draco or meshopt decoders: their WebAssembly breaks the window's strict CSP.
+
+**Walking:** walls, doors and furniture are data (`src/app/office/layout.ts`), drawn by `Furniture.tsx`
+and turned into a walkable grid by `paths.ts` (0.25 cells, walls kept 0.3 away, furniture 0.15). A
+Peep finds its way with A* whenever where it should be changes, cuts the corners where the way is
+clear, and goes through the door gaps (the doors stand wide open). Peeps don't avoid each other.
 
 ## Rooms in v1
 
@@ -29,6 +43,19 @@ a Task status, a CEO button), never because a model chose to walk there.
 
 Dropping a Peep **next to another Peep** offers actions about that Peep, whatever the Room: "Review
 their work", "Give them direction", "Ask for progress", "Help them".
+
+**Layout `studio-small`:** a 30 x 22 floor, walls on the two far sides so the camera looks in from the
+open corner. The CEO Office, the Manager's Office and the Meeting Room are closed rooms along the back
+wall, behind glass partitions with an open door onto a corridor; the lobby next to them has the Front
+Door, a gap in the back wall. The Desks are an open plan of six cubicle pods (36 desks): two rows facing
+each other across a sage divider, panels between neighbours. Hires take the first pod. A Room's name
+shows only while it's pointed at or a Peep is being carried; the furniture tells you the rest.
+
+| | left | middle | right |
+|---|---|---|---|
+| **back** (glass, doors) | CEO Office | Manager's Office | Meeting Room · lobby with the Front Door |
+| **corridor** | Library (glass, Skill Shelf: the terracotta bookcase) | | |
+| **open** | Lounge (sofa, coffee machine) | Desks: six pods | Server Room (glass) · Archive |
 
 Left out on purpose: a War Room (the Meeting Room does the job) and a Studio for media files (comes
 with a content Template, once one exists).

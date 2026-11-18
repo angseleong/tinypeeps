@@ -199,6 +199,7 @@ export const en = {
         ["What did we finish today?", "List what was finished in this folder today: read .tinypeeps/notes and the files changed today. Short bullet points."],
       ],
     },
+    door: { name: "Front Door", actions: [] },
     lounge: { name: "Lounge", actions: [] },
   } as Record<string, { name: string; actions: [string, string][] }>,
   panel: { tokens: "tokens", stop: "Stop", lastResult: "Latest result", none: "Nothing yet.", log: "Log", model: "Model" },

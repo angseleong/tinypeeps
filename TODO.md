@@ -202,14 +202,21 @@ From capsules to a warm low-poly office. [office.md](docs/office.md)
 - [x] **Art:** KayKit Adventurers + Character Animations + Furniture Bits (or Quaternius), licences
       checked on each pack's page, listed in `assets/CREDITS.md`. Needs sitting, waving, working clips
       (in the pack) but no typing clip exists: see office.md
-- [ ] **Look:** matte toon material, cream/terracotta/sage palette, baked soft shadows, isometric
-      camera with a little rotate and zoom
-- [ ] **Layout `studio-small`** ([office.md](docs/office.md#rooms-in-v1)): CEO Office, Manager's
+- [x] **Look:** matte toon material, cream/terracotta/sage palette, baked soft shadows, isometric
+      camera with a little rotate and zoom. Built (`src/app/office/look.ts`, `Furniture.tsx`): seen in
+      a browser on the real `Office` component, light and dark, drag and drop working; the Electron dev
+      window draws it at 60 fps while moving and 0 when still. Seen by the maintainer in the real window
+- [x] **Layout `studio-small`** ([office.md](docs/office.md#rooms-in-v1)): CEO Office, Manager's
       Office, Meeting Room, Library with the Skill Shelf, Desks, Server Room, Front Door, Archive,
-      Lounge (sofa, coffee machine)
+      Lounge (sofa, coffee machine). Built (`office-data.ts`, `Furniture.tsx`): closed rooms behind
+      glass with doors, six cubicle pods of facing desks, names on hover; seats saved by the first
+      layout move to the new ones (`test/office-layout.test.ts`). Seen in the real window
 - [ ] **Poses per Activity:** laptop typing, open book, library shelf or phone, server rack, thought
       bubble, helper peep, paper to the CEO, red "!", coffee, sofa; Role-renamed Activity labels
-- [ ] **Walking:** simple paths around furniture, face where they go
+- [x] **Walking:** simple paths around furniture, face where they go. Built (`src/app/office/paths.ts`):
+      A* on a 0.25 grid from the same walls, doors and furniture the office draws, corners cut;
+      `test/office-paths.test.ts` walks between 9 places and never crosses a wall. Peeps don't avoid
+      each other yet. Seen in the real window
 - [ ] **Alive details** ([office.md](docs/office.md#details-that-make-it-feel-alive)): desk monitor
       shows the real tool, a folder flies on hand-over, faces from how it's going, a celebration and a
       victory move on Pass
